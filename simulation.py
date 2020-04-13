@@ -7,6 +7,7 @@ def main():
     cities = construct_cities()
     for city in cities:
         city.set_initial_states()
+
     for i in range(0, timesteps):
         for city in cities:
             print('Day {}'.format(i))
@@ -16,18 +17,19 @@ def main():
 
 def construct_cities():
     #  gamma and min/max ro values from https://wwwnc.cdc.gov/eid/article/26/7/20-0282_article
+    # TODO: different Ro for different cities, based on data?
     gamma = 1.0 / 18.0
 
     median_R0 = 5.7
 
     beta = gamma * median_R0
 
-    w = 100
-    h = 100
-    n = 5000
+    ws = [50, 70]
+    hs = [50, 90]
+    ns = [1000, 2000]
     # TODO: choose realistic numbers
-    cities = [City('Boulder', w, h, n, beta, gamma),]
-              #City('Denver', 500, 500, 10000),
+    cities = [City('Boulder', ws[0], hs[0], ns[0], beta, gamma),
+              City('Denver', ws[1], hs[1], ns[1], beta, gamma),]
               #City('New York', 450, 650, 15000)]
     return cities
 

@@ -12,7 +12,6 @@ class Agent:
         # attributes
         self.infection_beta = beta
         self.infection_gamma = gamma
-        self.initially_infected_rate = 0.05
 
         self.susceptible = True
         self.infected = False
@@ -44,8 +43,6 @@ class Agent:
         self.prior_x_position = self.positionx
         self.prior_y_position = self.positiony
         self.prior_direction = self.direction
-        if random.random() <= self.initially_infected_rate:
-            self.transition_state('infected')
 
     def move(self):
         '''2-d correlated random walk.
@@ -128,5 +125,9 @@ class Agent:
     def is_susceptible(self):
         return self.susceptible
 
+    def is_removed(self):
+        return self.removed
+
     def has_transitioned_this_timestep(self):
         return self.transitioned_this_timestep
+
