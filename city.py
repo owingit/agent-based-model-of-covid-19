@@ -51,6 +51,13 @@ class City:
             if agent.state == 'removed':
                 self.num_removed += 1
 
+    def get_states(self):
+        return {
+            'susceptible': self.num_susceptible,
+            'infected': self.num_infected,
+            'removed': self.num_removed
+        }
+
     def print_states(self):
         print('City: {}\nSusceptible: {}\nInfected: {}\nRemoved: {}\n'.format(self.name, self.num_susceptible, self.num_infected, self.num_removed))
 

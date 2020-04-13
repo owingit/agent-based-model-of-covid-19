@@ -2,16 +2,22 @@ from city import *
 from scipy import special
 import numpy as np
 
+
 def main():
-    timesteps = 150
+    timesteps = 7
     cities = construct_cities()
     for city in cities:
         city.set_initial_states()
+    city_data = {}
+    for city in cities:
+        city_data[city.name] = []
 
     for i in range(0, timesteps):
         for city in cities:
             print('Day {}'.format(i))
             city.timestep(i)
+            state_dict = city.get_states()
+            city_data[city.name].append(state_dict)
             city.print_states()
 
 
