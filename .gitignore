@@ -1,0 +1,5 @@
+# ignore an entire directory
+.idea/*
+
+# ignore pyc
+*.pyc
