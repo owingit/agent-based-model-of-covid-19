@@ -44,23 +44,29 @@ class Agent:
         self.prior_y_position = self.positiony
         self.prior_direction = self.direction
 
-    def move(self):
-        '''2-d correlated random walk.
+    def move(self, movement_mode='2d_random_walk'):
+        '''Move the agent.'''
+        if movement_mode == '2d_random_walk':
+            self.twod_random_walk()
 
-        :param float prior_direction: direction at previous timestep, radians
-        :param float prior_x_position: x coordinate at previous timestep (before the outcome of this func)
-        :param float prior_y_position: y coordinate at previous timestep (before the outcome of this func)
-        :param City city: current city in which the agent operates
-        '''
+        if movement_mode == 'preferential_return':
+            self.preferential_return()
+
+        self.recalculate_positions_based_on_edges(self.city)
+        self.transitioned_this_timestep = False
+
+    def twod_random_walk(self):
+        '''2-d correlated random walk.'''
         self.movement_angle_at_current_timestep = self.theta_star[random.randint(0, 99)]
         self.direction = self.prior_direction + self.movement_angle_at_current_timestep
 
         #  normal movement, constrained by city boundaries
         self.positionx = self.prior_x_position + (self.velocity * math.cos(self.direction))
         self.positiony = self.prior_y_position + (self.velocity * math.sin(self.direction))
-
-        self.recalculate_positions_based_on_edges(self.city)
-        self.transitioned_this_timestep = False
+        
+    def preferential_return(self):
+        '''Preferential return movement model.'''
+        # TODO
 
     def recalculate_positions_based_on_edges(self, city):
         '''Adjust the positions of an agent based on the city's boundaries.
