@@ -63,7 +63,7 @@ class Agent:
         #  normal movement, constrained by city boundaries
         self.positionx = self.prior_x_position + (self.velocity * math.cos(self.direction))
         self.positiony = self.prior_y_position + (self.velocity * math.sin(self.direction))
-        
+
     def preferential_return(self):
         '''Preferential return movement model.'''
         # TODO
@@ -136,4 +136,3 @@ class Agent:
 
     def has_transitioned_this_timestep(self):
         return self.transitioned_this_timestep
-
