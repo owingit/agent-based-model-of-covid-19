@@ -24,7 +24,7 @@ class City:
         self.poisson_intensity = 0.10
         self.width = x
         self.height = y
-        self.datafile= '{}x{}x{}parameter_sweep_data.txt'.format(self.width, self.height, self.N)
+        self.datafile = '{}x{}x{}parameter_sweep_data.txt'.format(self.width, self.height, self.N)
 
         self.area = self.width * self.height
         self.central_locations = self.poisson_point_process()

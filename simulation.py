@@ -24,6 +24,13 @@ def main():
 
 
 def setup_and_run(timesteps, beta, gamma):
+    """
+
+    :param timesteps: number of timesteps to run the simulation
+    :param beta: beta parameter (proxy for infection rate)
+    :param gamma: gamma parameter (proxy for recovery rate)
+    :return:
+    """
     cities = construct_cities(beta, gamma)
 
     for city in cities:
@@ -47,7 +54,8 @@ def setup_and_run(timesteps, beta, gamma):
 
     for cg in city_graphs:
         cg.total_infected = cg.ys[len(cg.xs)-1]['total_IR']
-        cg.write_data()
+        cg.plot_data()
+        #cg.write_data()
 
 
 def construct_cities(beta, gamma_denom):
@@ -55,8 +63,8 @@ def construct_cities(beta, gamma_denom):
     gamma = 1.0 / gamma_denom
 
     ws = [50, 70]
-    hs = [50, 90]
-    ns = [1000, 2000]
+    hs = [50, 70]
+    ns = [1000, 1000]
     # TODO: choose realistic numbers
     cities = [City('Boulder', ws[0], hs[0], ns[0], beta, gamma),
               City('Denver', ws[1], hs[1], ns[1], beta, gamma)]
