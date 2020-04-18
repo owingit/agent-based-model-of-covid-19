@@ -62,8 +62,8 @@ def construct_cities(beta, gamma_denom):
     # TODO: different Ro for different cities, based on data?
     gamma = 1.0 / gamma_denom
 
-    ws = [50, 70]
-    hs = [50, 70]
+    ws = [50, 50]
+    hs = [50, 50]
     ns = [1000, 1000]
     # TODO: choose realistic numbers
     cities = [City('Boulder', ws[0], hs[0], ns[0], beta, gamma),

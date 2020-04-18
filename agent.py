@@ -2,6 +2,10 @@ import math
 import random
 import numpy as np
 
+from scipy.spatial import Voronoi, voronoi_plot_2d
+from shapely.geometry import Point
+from shapely.geometry.polygon import Polygon
+
 
 class Agent:
     def __init__(self, i, City, beta, gamma):
@@ -27,6 +31,12 @@ class Agent:
         self.prior_direction = 0
         self.direction = 0
 
+        self.personal_central_location = [0, 0]
+        self.stay_at_home_probability = 6.0 / 7.0  # 6 days out of a week, on average
+        self.shop_probability = 1.0 / 7.0
+        self.home_location = [0, 0]
+        self.movement_state = -1
+
         self.theta_star = np.linspace(-(math.pi / 2), (math.pi / 2), 100)
         self.movement_angle_at_current_timestep = self.theta_star[random.randint(0, 99)]
         self.name = "Agent #{}".format(i)
@@ -43,8 +53,9 @@ class Agent:
         self.prior_x_position = self.positionx
         self.prior_y_position = self.positiony
         self.prior_direction = self.direction
+        self.home_location = [self.positionx, self.positiony]
 
-    def move(self, movement_mode='2d_random_walk'):
+    def move(self, movement_mode):
         '''Move the agent.'''
         if movement_mode == '2d_random_walk':
             self.twod_random_walk()
@@ -65,8 +76,34 @@ class Agent:
         self.positiony = self.prior_y_position + (self.velocity * math.sin(self.direction))
 
     def preferential_return(self):
-        '''Preferential return movement model.'''
-        # TODO
+        '''Preferential return movement model.
+
+        All agents start at 'home'. With some probability p they choose to leave or stay at home.
+
+        If they leave they teleport to the nearest central location, dictated by the
+        voronoi diagram around the poissson point process.
+
+        Once out they are assigned a random number of timesteps (encoded here in movement state) to be out.
+        During that time they move with a 2d random walk pattern.
+
+        Once that is done they return home.
+        '''
+        if self.movement_state == -1:
+            if random.random() < self.stay_at_home_probability:
+                self.positionx = self.prior_x_position
+                self.position_y = self.prior_y_position
+            else:
+                self.positionx = self.personal_central_location[0]
+                self.positiony = self.personal_central_location[1]
+                self.movement_state = random.randint(0, 10)
+        else:
+            if self.movement_state > 0:
+                self.twod_random_walk()
+                self.movement_state = self.movement_state - 1
+            else:
+                self.positionx = self.home_location[0]
+                self.positiony = self.home_location[1]
+                self.movement_state = -1
 
     def recalculate_positions_based_on_edges(self, city):
         '''Adjust the positions of an agent based on the city's boundaries.
@@ -124,6 +161,43 @@ class Agent:
             return 'infected'
         else:
             return 'removed'
+
+    def set_central_location(self, points):
+        """Set a central location (supermarket) for the agent based on their home location.
+
+        Uses a voronoi diagram where the centers of each region are the points marked by the poisson point process.
+        If the home location for an agent is in the voronoi region of a point, that point becomes its central location.
+        """
+        vor = Voronoi(points)
+        vertices = vor.vertices
+        regions = vor.regions
+        regions.remove([])
+        polygons = []
+        for i, reg in enumerate(regions):
+            polygon_vertices = vertices[reg]
+            point_pairs = []
+            for pair in polygon_vertices:
+                point_pair = (pair[0], pair[1])
+                point_pairs.append(point_pair)
+            polygon = Polygon(point_pairs)
+            if i > len(points):
+                i = len(points)
+            polygons.append((i, polygon))
+
+        point = Point(self.home_location[0], self.home_location[1])
+        assigned = False
+        for region, polygon in polygons:
+            if polygon.contains(point):
+                self.personal_central_location = list(set([points[region], points[region]]))  # strip dupes
+                assigned = True
+        if not assigned:
+            self.personal_central_location = list(set([points[(len(regions) / 2)], points[(len(regions) / 2)]]))
+
+        # return to format
+        self.personal_central_location = [self.personal_central_location[0][0], self.personal_central_location[0][1]]
+
+    def set_home_location(self, x, y):
+        self.home_location = [x, y]
 
     def is_infected(self):
         return self.infected

@@ -19,9 +19,9 @@ class City:
         self.N = n
 
         self.name = name
-        self.policy = None
+        self.policy = '2d_random_walk' if self.name == 'Boulder' else 'preferential_return'
 
-        self.poisson_intensity = 0.10
+        self.poisson_intensity = 0.01
         self.width = x
         self.height = y
         self.datafile = '{}x{}x{}parameter_sweep_data.txt'.format(self.width, self.height, self.N)
@@ -34,6 +34,8 @@ class City:
         self.edge_proximity = 3.0
 
         self.agents = [Agent(i, self, self.beta, self.gamma) for i in range(0, self.N)]
+        for agent in self.agents:
+            agent.set_central_location(self.central_locations)
 
     def set_policy(self, policy):
         self.policy = policy
@@ -88,11 +90,10 @@ class City:
             b) a proximity network is formed
             c) infection spreads with probability gamma
         '''
-        # S_I_transition_rate = self.beta * self.num_infected / self.N
         self.network = nx.Graph()
         # generate nodes O(n)
         for agent in self.agents:
-            agent.move()
+            agent.move(self.policy)
             self.network.add_node(agent)
 
         # generate edges O(n^2)
@@ -117,7 +118,6 @@ class City:
             susceptible_neighbors = [neighbor for neighbor in adjacency_list if neighbor.is_susceptible()]
             if len(susceptible_neighbors) > 0:
                 S_I_transition_rate = self.beta / len(susceptible_neighbors)
-                # print('Beta {} / {} susceptible neighbors of infected node: {}'.format(self.beta, len(susceptible_neighbors), S_I_transition_rate))  # found by solving beta = alpha * p, where alpha is the contact rate based on the ABM network
                 for neighbor in susceptible_neighbors:
                     if random.random() <= S_I_transition_rate:
                         print('Transitioning {} to infected'.format(neighbor.name))
