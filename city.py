@@ -1,5 +1,6 @@
 import math
 import random
+import policy
 import numpy as np
 import itertools
 
@@ -10,7 +11,7 @@ from agent import *
 
 
 class City:
-    def __init__(self, name, x, y, n, beta, gamma):
+    def __init__(self, name, x, y, n, beta, gamma, hpolicy, mpolicy):
         self.beta = beta  # beta naught for covid 19
         self.gamma = gamma  # gamma naught for covid 19
         self.num_infected = 0
@@ -19,7 +20,8 @@ class City:
         self.N = n
 
         self.name = name
-        self.policy = '2d_random_walk' if self.name == 'Boulder' else 'preferential_return'
+        self.hpolicy = hpolicy
+        self.mpolicy = mpolicy
 
         self.poisson_intensity = 0.01
         self.width = x
@@ -31,14 +33,13 @@ class City:
 
         self.past_networks = []
         self.network = None
-        self.edge_proximity = 3.0
+        self.edge_proximity = 1.0 # proxy for infectivity
 
         self.agents = [Agent(i, self, self.beta, self.gamma) for i in range(0, self.N)]
+        self.agent_dict = { v.number:v for v in self.agents}
         for agent in self.agents:
             agent.set_central_location(self.central_locations)
-
-    def set_policy(self, policy):
-        self.policy = policy
+        self.policy = policy.Policy(self.name, self.agents, self.hpolicy, self.mpolicy, self.area)
 
     def print_width(self):
         print('{} is {} units wide'.format(self.name, self.width))
@@ -92,15 +93,42 @@ class City:
         '''
         self.network = nx.Graph()
         # generate nodes O(n)
-        for agent in self.agents:
-            agent.move(self.policy)
-            self.network.add_node(agent)
 
         # generate edges O(n^2)
+        affected_individuals = []
+        potential_edges = []
+        agents_to_swap = []
+        print self.policy.health_policy, self.policy.movement_policy
         for pair in list(itertools.combinations(self.agents, r=2)):
             d = np.sqrt(((pair[0].positionx - pair[1].positionx) ** 2) + ((pair[0].positiony - pair[1].positiony) ** 2))
+            agent_a = pair[0]
+            agent_b = pair[1]
+            agent_a.set_policy(self.policy.health_policy, self.policy.movement_policy)
+            agent_b.set_policy(self.policy.health_policy, self.policy.movement_policy)
+            if d <= self.policy.policy_distance and self.policy.health_policy == 'social_distancing':
+                # if the distance is less than social distancing policy distance
+                agent_a.health_policy = self.policy.health_policy
+                agent_b.movement_policy = self.policy.movement_policy
+                agents_to_swap.append(agent_a)
+                agents_to_swap.append(agent_b)
+
             if d <= self.edge_proximity:
-                self.network.add_edge(pair[0], pair[1])
+                # we know you would be repulsed, so we add you to a data structure here
+                potential_edges.append((agent_a.number, agent_b.number))
+
+        for agent_to_swap in agents_to_swap:
+            #  swap agent in self.agents with agent_a and agent_b
+            old_agent = self.agent_dict[agent_to_swap.number]
+            assert old_agent.name == agent_to_swap.name
+            assert self.agents[old_agent.number].name == agent_to_swap.name
+            self.agents[old_agent.number] = agent_to_swap
+
+        for agent in self.agents:
+            self.network.add_node(agent)
+            agent.move()
+
+        for edge_number_tuple in potential_edges:
+            self.network.add_edge(self.agents[edge_number_tuple[0]], self.agents[edge_number_tuple[1]])
 
         self.past_networks.append(self.network)
 

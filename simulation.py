@@ -14,7 +14,7 @@ COVID_Beta = COVID_Ro / COVID_Gamma
 
 
 def main():
-    timesteps = 100
+    timesteps = 200
     if DO_PARAMETER_SWEEP:
         for beta in BETAS:
             for gamma in GAMMAS:
@@ -62,12 +62,17 @@ def construct_cities(beta, gamma_denom):
     # TODO: different Ro for different cities, based on data?
     gamma = 1.0 / gamma_denom
 
-    ws = [50, 50]
-    hs = [50, 50]
-    ns = [1000, 1000]
-    # TODO: choose realistic numbers
-    cities = [City('Boulder', ws[0], hs[0], ns[0], beta, gamma),
-              City('Denver', ws[1], hs[1], ns[1], beta, gamma)]
+    ws = [20, 20]
+    hs = [20, 20]
+    ns = [250, 250]
+    hpolicy_a = 'social_distancing'
+    hpolicy_b = 'normal'
+    mpolicy_a = '2d_random_walk'
+    mpolicy_b = 'preferential_return'
+    cities = [City('Boulder', ws[0], hs[0], ns[0], beta, gamma, hpolicy_a, mpolicy_a),
+              City('Denver', ws[1], hs[1], ns[1], beta, gamma, hpolicy_b, mpolicy_b),
+              City('Fort Collins', ws[0], hs[0], ns[0], beta, gamma, hpolicy_a, mpolicy_b),
+              City('Colorado Springs', ws[0], hs[0], ns[0], beta, gamma, hpolicy_b, mpolicy_a)]
               #City('New York', 450, 650, 15000)]
     return cities
 
