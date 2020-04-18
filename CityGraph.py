@@ -1,7 +1,7 @@
 import json
-
+from city import *
 import matplotlib.pyplot as plt
-
+import matplotlib.style as style
 
 class CityGraph:
     def __init__(self, city):
@@ -36,11 +36,13 @@ class CityGraph:
                                                       self.city.height,
                                                       self.N,
                                                       self.beta * 1 / self.gamma)
+        style.use('ggplot')
         plt.title(title)
         plt.plot(list(plot_dict_susceptible.keys()), list(plot_dict_susceptible.values()), label="Susceptible")
         plt.plot(list(plot_dict_infected.keys()), list(plot_dict_infected.values()), label="Infected")
         plt.plot(list(plot_dict_removed.keys()), list(plot_dict_removed.values()), label="Removed")
         plt.xlabel('t')
-        plt.ylabel('Num agents in states S,I,R')
-
+        plt.ylabel('# agents in states S,I,R')
+        plt.legend(loc='best')
+        plt.grid()
         plt.show()
