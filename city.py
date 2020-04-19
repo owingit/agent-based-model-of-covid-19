@@ -95,7 +95,8 @@ class City:
         }
 
     def print_states(self):
-        print('City: {}\nSusceptible: {}\nInfected: {}\nRemoved: {}\n'.format(self.name, self.num_susceptible, self.num_infected, self.num_removed))
+        print('City: {}\nSusceptible: {}\nInfected: {}\nRemoved: {}\n'.format(
+            self.name, self.num_susceptible, self.num_infected, self.num_removed))
 
     def timestep(self, i):
         '''One unit of time in a city.
@@ -110,12 +111,14 @@ class City:
         self.network = nx.Graph()
 
         # generate edges O(n^2)
-        affected_individuals = []
         potential_edges = []
         agents_to_swap = []
         print self.policy.health_policy, self.policy.movement_policy
         for pair in list(itertools.combinations(self.agents, r=2)):
-            d = np.sqrt(((pair[0].positionx - pair[1].positionx) ** 2) + ((pair[0].positiony - pair[1].positiony) ** 2))
+            d = np.sqrt(
+                # euclidean distance
+                ((pair[0].positionx - pair[1].positionx) ** 2) + ((pair[0].positiony - pair[1].positiony) ** 2)
+            )
             agent_a = pair[0]
             agent_b = pair[1]
             agent_a.set_policy(self.policy.health_policy, self.policy.movement_policy)

@@ -5,6 +5,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
+import sys
+
 GAMMAS = np.linspace(1.0, 20.0, num=20)  # infection length (days)
 BETAS = np.linspace(1.0, 100.0, num=100) / 100
 DO_PARAMETER_SWEEP = False
@@ -14,7 +16,7 @@ COVID_Beta = COVID_Ro / COVID_Gamma
 
 
 def main():
-    timesteps = 200
+    timesteps = int(sys.argv[1]) if len(sys.argv) > 1 else 200
     if DO_PARAMETER_SWEEP:
         for beta in BETAS:
             for gamma in GAMMAS:
