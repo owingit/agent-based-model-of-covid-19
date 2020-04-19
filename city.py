@@ -12,6 +12,17 @@ from agent import *
 
 class City:
     def __init__(self, name, x, y, n, beta, gamma, hpolicy, mpolicy):
+        '''Defines an agent, which represents a node in the city-level infection network.
+
+        :param str name: name of the city
+        :param int x: width
+        :param int y: height
+        :param int n: num agents in city
+        :param float beta: experimental beta value
+        :param float gamma: experimental gamma denominator
+        :param str hpolicy: health policy name
+        :param str mpolicy: movement policy name
+        '''
         self.beta = beta  # beta naught for covid 19
         self.gamma = gamma  # gamma naught for covid 19
         self.num_infected = 0
@@ -72,6 +83,10 @@ class City:
         return points
 
     def get_states(self):
+        """Returns dict of states.
+
+        :rtype dict(any)
+        """
         return {
             'susceptible': self.num_susceptible,
             'infected': self.num_infected,
@@ -90,9 +105,9 @@ class City:
             a) all agents in a city move, either within the city or to another city with a certain p
             b) a proximity network is formed
             c) infection spreads with probability gamma
+            d) agent trajectories are updated by their distance policy
         '''
         self.network = nx.Graph()
-        # generate nodes O(n)
 
         # generate edges O(n^2)
         affected_individuals = []
@@ -116,6 +131,7 @@ class City:
                 # we know you would be repulsed, so we add you to a data structure here
                 potential_edges.append((agent_a.number, agent_b.number))
 
+        # update list O(|V|)
         for agent_to_swap in agents_to_swap:
             #  swap agent in self.agents with agent_a and agent_b
             old_agent = self.agent_dict[agent_to_swap.number]
@@ -123,10 +139,13 @@ class City:
             assert self.agents[old_agent.number].name == agent_to_swap.name
             self.agents[old_agent.number] = agent_to_swap
 
+        # move nodes
+        # generate nodes O(n)
         for agent in self.agents:
-            self.network.add_node(agent)
             agent.move()
+            self.network.add_node(agent)
 
+        # generate edges (O|E|)
         for edge_number_tuple in potential_edges:
             self.network.add_edge(self.agents[edge_number_tuple[0]], self.agents[edge_number_tuple[1]])
 
@@ -139,7 +158,13 @@ class City:
                     self.handle_infection(agent)
 
     def handle_infection(self, agent):
-        """What to do when an agent is infected."""
+        """What to do when an agent is infected.
+
+        1. Check for susceptible neighbors.
+        2. For each susceptible neighbor:
+           transmit infection with probability beta / k<ex>
+        3. Recover if t_infected > 1/gamma
+        """
         agent.timesteps_infected += 1
         adjacency_list = self.network[agent]
         if len(adjacency_list) > 0:

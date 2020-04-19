@@ -1,4 +1,5 @@
 import math
+import city
 import random
 import numpy as np
 
@@ -13,6 +14,9 @@ class Agent:
         '''Defines an agent, which represents a node in the city-level infection network.
 
         :param int i: num
+        :param city.City City: City object encompassing the agent
+        :param float beta: experimental beta value
+        :param float gamma: experimental gamma denominator
         '''
         # attributes
         self.infection_beta = beta
@@ -59,7 +63,10 @@ class Agent:
         self.home_location = [self.positionx, self.positiony]
 
     def move(self):
-        '''Move the agent.'''
+        '''Move the agent.
+
+        Informed by self.health_policy and self.movement_policy.
+        '''
         if self.health_policy == 'social_distancing':
             self.recalculate_vector_based_on_policy()
         if self.movement_policy == '2d_random_walk':
@@ -72,7 +79,11 @@ class Agent:
         self.transitioned_this_timestep = False
 
     def twod_random_walk(self):
-        '''2-d correlated random walk.'''
+        '''2-d correlated random walk.
+
+        At each timestep an agent chooses a direction - theta - at random and proceeds
+        one unit along the vector made by that angle from its current position.
+        '''
         self.movement_angle_at_current_timestep = self.theta_star[random.randint(0, 99)]
         self.direction = self.prior_direction + self.movement_angle_at_current_timestep
 
@@ -100,7 +111,7 @@ class Agent:
             else:
                 self.positionx = self.personal_central_location[0]
                 self.positiony = self.personal_central_location[1]
-                self.movement_state = random.randint(0, 10)
+                self.movement_state = random.randint(0, 3)
         else:
             if self.movement_state > 0:
                 self.twod_random_walk()

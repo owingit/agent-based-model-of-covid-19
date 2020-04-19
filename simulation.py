@@ -24,12 +24,11 @@ def main():
 
 
 def setup_and_run(timesteps, beta, gamma):
-    """
+    """Initialize the simulation.
 
     :param timesteps: number of timesteps to run the simulation
     :param beta: beta parameter (proxy for infection rate)
     :param gamma: gamma parameter (proxy for recovery rate)
-    :return:
     """
     cities = construct_cities(beta, gamma)
 
@@ -59,6 +58,11 @@ def setup_and_run(timesteps, beta, gamma):
 
 
 def construct_cities(beta, gamma_denom):
+    """Initialize cities with different policies, beta, gamma values. Right now they're all the same size/population
+
+    :param float beta: experimental beta value
+    :param float gamma_denom: gamma denominator
+    :returns: list of city objects"""
     # TODO: different Ro for different cities, based on data?
     gamma = 1.0 / gamma_denom
 
@@ -73,7 +77,6 @@ def construct_cities(beta, gamma_denom):
               City('Denver', ws[1], hs[1], ns[1], beta, gamma, hpolicy_b, mpolicy_b),
               City('Fort Collins', ws[0], hs[0], ns[0], beta, gamma, hpolicy_a, mpolicy_b),
               City('Colorado Springs', ws[0], hs[0], ns[0], beta, gamma, hpolicy_b, mpolicy_a)]
-              #City('New York', 450, 650, 15000)]
     return cities
 
 
