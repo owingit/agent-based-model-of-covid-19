@@ -75,14 +75,14 @@ def construct_cities(beta, gamma_denom):
     hpolicy_b = 'normal'
     mpolicy_a = '2d_random_walk'
     mpolicy_b = 'preferential_return'
-    cities = [City('Boulder', ws[0], hs[0], ns[0], beta, gamma, hpolicy_a, mpolicy_a),
-              City('Denver', ws[1], hs[1], ns[0], beta, gamma, hpolicy_b, mpolicy_b),
-              City('Fort Collins', ws[0], hs[0], ns[0], beta, gamma, hpolicy_a, mpolicy_b),
-              City('Colorado Springs', ws[1], hs[1], ns[0], beta, gamma, hpolicy_b, mpolicy_a),
-              City('DenserBoulder', ws[0], hs[0], ns[1], beta, gamma, hpolicy_a, mpolicy_a),
-              City('DenserDenver', ws[1], hs[1], ns[1], beta, gamma, hpolicy_b, mpolicy_b),
-              City('DenserFort Collins', ws[0], hs[0], ns[1], beta, gamma, hpolicy_a, mpolicy_b),
-              City('DenserColorado Springs', ws[1], hs[1], ns[1], beta, gamma, hpolicy_b, mpolicy_a)]
+    cities = [City('Boulder', ws[0], hs[0], ns[0], beta, gamma, hpolicy_b, mpolicy_a),
+              City('Denver', ws[1], hs[1], ns[0], beta, gamma, hpolicy_b, mpolicy_b)]
+              # City('Fort Collins', ws[0], hs[0], ns[0], beta, gamma, hpolicy_a, mpolicy_b),
+              # City('Colorado Springs', ws[1], hs[1], ns[0], beta, gamma, hpolicy_b, mpolicy_a),
+              # City('DenserBoulder', ws[0], hs[0], ns[1], beta, gamma, hpolicy_a, mpolicy_a),
+              # City('DenserDenver', ws[1], hs[1], ns[1], beta, gamma, hpolicy_b, mpolicy_b),
+              # City('DenserFort Collins', ws[0], hs[0], ns[1], beta, gamma, hpolicy_a, mpolicy_b),
+              # City('DenserColorado Springs', ws[1], hs[1], ns[1], beta, gamma, hpolicy_b, mpolicy_a)]
     return cities
 
 

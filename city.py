@@ -34,13 +34,15 @@ class City:
         self.hpolicy = hpolicy
         self.mpolicy = mpolicy
 
-        self.poisson_intensity = 0.01
         self.width = x
         self.height = y
         self.datafile = '{}x{}x{}parameter_sweep_data.txt'.format(self.width, self.height, self.N)
 
         self.area = self.width * self.height
-        self.central_locations = self.poisson_point_process()
+        self.central_locations = self.poisson_point_process(intensity=0.01)
+        self.transit_hubs = self.poisson_point_process(intensity=0.02)
+        self.workspaces = self.poisson_point_process(intensity=0.04)
+        self.homes = self.poisson_point_process(intensity=0.08)
 
         self.past_networks = []
         self.network = None
@@ -49,7 +51,10 @@ class City:
         self.agents = [Agent(i, self, self.beta, self.gamma) for i in range(0, self.N)]
         self.agent_dict = { v.number:v for v in self.agents}
         for agent in self.agents:
-            agent.set_central_location(self.central_locations)
+            agent.set_and_verify_locations(markets=self.central_locations,
+                                           transits=self.transit_hubs,
+                                           workspaces=self.workspaces,
+                                           homes=self.homes)
         self.policy = policy.Policy(self.name, self.agents, self.hpolicy, self.mpolicy, self.area)
 
     def print_width(self):
@@ -74,9 +79,9 @@ class City:
             if agent.state == 'removed':
                 self.num_removed += 1
 
-    def poisson_point_process(self):
+    def poisson_point_process(self, intensity):
         """Generate central locations based on poisson intensity."""
-        num_points = np.random.poisson(self.poisson_intensity * self.area)  # Poisson number of points
+        num_points = np.random.poisson(intensity * self.area)  # Poisson number of points
         xs = self.width * np.random.uniform(0, 1, num_points)
         ys = self.height * np.random.uniform(0, 1, num_points)
         points = zip(xs, ys)
@@ -111,9 +116,46 @@ class City:
         self.network = nx.Graph()
 
         # generate edges O(n^2)
+        print self.policy.health_policy, self.policy.movement_policy
+        potential_edges = self.find_edge_candidates()
+
+        # move nodes
+        # generate nodes O(n)
+        for agent in self.agents:
+            agent.move()
+            self.network.add_node(agent)
+
+        # generate edges (O|E|)
+        for edge_number_tuple in potential_edges:
+            self.network.add_edge(self.agents[edge_number_tuple[0]], self.agents[edge_number_tuple[1]])
+
+        self.past_networks.append(self.network)
+
+        # infect O(n * |neighbor_set|)
+        for agent in self.agents:
+            if not agent.has_transitioned_this_timestep():
+                if agent.is_infected():
+                    self.handle_infection(agent)
+
+        homes = [agent for agent in self.agents if agent.mode == 'home']
+        len_homes = len(homes)
+        works = [agent for agent in self.agents if agent.mode == 'work']
+        len_works = len(works)
+        transits = [agent for agent in self.agents if agent.mode == 'transit']
+        len_transits = len(transits)
+        markets = [agent for agent in self.agents if agent.mode == 'market']
+        len_markets = len(markets)
+        print('{} stayed home, {} went to work, {} went on the bus, {} went to the market'.format(
+            len_homes, len_works, len_transits, len_markets
+        ))
+
+    def find_edge_candidates(self):
+        """See if a node is close enough to another node to count as an edge.
+
+        Update the health policy and replace the node in self.agents with the modified node.
+        """
         potential_edges = []
         agents_to_swap = []
-        print self.policy.health_policy, self.policy.movement_policy
         for pair in list(itertools.combinations(self.agents, r=2)):
             d = np.sqrt(
                 # euclidean distance
@@ -142,23 +184,7 @@ class City:
             assert self.agents[old_agent.number].name == agent_to_swap.name
             self.agents[old_agent.number] = agent_to_swap
 
-        # move nodes
-        # generate nodes O(n)
-        for agent in self.agents:
-            agent.move()
-            self.network.add_node(agent)
-
-        # generate edges (O|E|)
-        for edge_number_tuple in potential_edges:
-            self.network.add_edge(self.agents[edge_number_tuple[0]], self.agents[edge_number_tuple[1]])
-
-        self.past_networks.append(self.network)
-
-        # infect O(n * |neighbor_set|)
-        for agent in self.agents:
-            if not agent.has_transitioned_this_timestep():
-                if agent.is_infected():
-                    self.handle_infection(agent)
+        return potential_edges
 
     def handle_infection(self, agent):
         """What to do when an agent is infected.

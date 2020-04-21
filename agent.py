@@ -38,11 +38,12 @@ class Agent:
         self.prior_direction = 0
         self.direction = 0
 
-        self.personal_central_location = [0, 0]
-        self.stay_at_home_probability = 6.0 / 7.0  # 6 days out of a week, on average
-        self.shop_probability = 1.0 / 7.0
-        self.home_location = [0, 0]
-        self.movement_state = -1
+        self.mode = None
+        self.personal_central_locations = {}
+        self.stay_at_home_probability = 0.5  # 6 days out of a week, on average
+        self.work_probability = 0.3
+        self.transit_probability = 0.1
+        self.shop_probability = 0.1
 
         self.theta_star = np.linspace(-(math.pi / 2), (math.pi / 2), 100)
         self.movement_angle_at_current_timestep = self.theta_star[random.randint(0, 99)]
@@ -60,7 +61,6 @@ class Agent:
         self.prior_x_position = self.positionx
         self.prior_y_position = self.positiony
         self.prior_direction = self.direction
-        self.home_location = [self.positionx, self.positiony]
 
     def move(self):
         '''Move the agent.
@@ -76,7 +76,10 @@ class Agent:
             self.preferential_return()
 
         self.recalculate_positions_based_on_edges(self.city)
-        self.transitioned_this_timestep = False
+        self._initialize_dynamic_state(False)
+
+    def _initialize_dynamic_state(self, state):
+        self.transitioned_this_timestep = state
 
     def twod_random_walk(self):
         '''2-d correlated random walk.
@@ -99,28 +102,20 @@ class Agent:
         If they leave they teleport to the nearest central location, dictated by the
         voronoi diagram around the poissson point process.
 
-        Once out they are assigned a random number of timesteps (encoded here in movement state) to be out.
-        During that time they move with a 2d random walk pattern.
-
-        Once that is done they return home.
         '''
-        if self.movement_state == -1:
-            if random.random() < self.stay_at_home_probability:
-                self.positionx = self.prior_x_position
-                self.position_y = self.prior_y_position
-            else:
-                self.positionx = self.personal_central_location[0]
-                self.positiony = self.personal_central_location[1]
-                self.movement_state = random.randint(0, 3)
+        rand_val = random.random()
+        if rand_val < self.stay_at_home_probability:
+            mode = 'home'
+        elif self.stay_at_home_probability + self.work_probability > rand_val >= self.stay_at_home_probability:
+            mode = 'work'
+        elif self.shop_probability + self.stay_at_home_probability + self.work_probability > rand_val >= self.stay_at_home_probability + self.work_probability:
+            mode = 'market'
         else:
-            if self.movement_state > 0:
-                self.twod_random_walk()
-                self.movement_state = self.movement_state - 1
-            else:
-                self.positionx = self.home_location[0]
-                self.positiony = self.home_location[1]
-                self.movement_state = -1
-
+            mode = 'transit'
+        self.mode = mode
+        assert self.mode
+        self.positionx = self.personal_central_locations[self.mode][0]
+        self.positiony = self.personal_central_locations[self.mode][1]
 
     def recalculate_positions_based_on_edges(self, city):
         '''Adjust the positions of an agent based on the city's boundaries.
@@ -185,45 +180,55 @@ class Agent:
         else:
             return 'removed'
 
-    def set_central_location(self, points):
+    def set_and_verify_locations(self, markets, transits, workspaces, homes):
         """Set a central location (supermarket) for the agent based on their home location.
 
         Uses a voronoi diagram where the centers of each region are the points marked by the poisson point process.
         If the home location for an agent is in the voronoi region of a point, that point becomes its central location.
+
+        :param markets: list of points denoting 'market' central locations
+        :param transits: list of points denoting 'transit_hub' central locations
+        :param workspaces: list of points denoting 'work' central locations
+        :param homes: list of points denoting 'home' central locations
         """
-        if USE_VORONOI:
-            vor = Voronoi(points)
-            vertices = vor.vertices
-            regions = vor.regions
-            regions.remove([])
-            polygons = []
-            for i, reg in enumerate(regions):
-                polygon_vertices = vertices[reg]
-                point_pairs = []
-                for pair in polygon_vertices:
-                    point_pair = (pair[0], pair[1])
-                    point_pairs.append(point_pair)
-                polygon = Polygon(point_pairs)
-                if i > len(points):
-                    i = len(points)
-                polygons.append((i, polygon))
+        modes = ['market', 'transit', 'work', 'home']
+        points_list = [markets, transits, workspaces, homes]
+        for index, location_group in enumerate(points_list):
+            if USE_VORONOI:
+                vor = Voronoi(location_group)
+                vertices = vor.vertices
+                regions = vor.regions
+                regions.remove([])
+                polygons = []
+                for i, reg in enumerate(regions):
+                    polygon_vertices = vertices[reg]
+                    point_pairs = []
+                    for pair in polygon_vertices:
+                        point_pair = (pair[0], pair[1])
+                        point_pairs.append(point_pair)
+                    polygon = Polygon(point_pairs)
+                    if i > len(location_group):
+                        i = len(location_group)
+                    polygons.append((i, polygon))
 
-            point = Point(self.home_location[0], self.home_location[1])
-            assigned = False
-            for region, polygon in polygons:
-                if polygon.contains(point):
-                    self.personal_central_location = list(set([points[region], points[region]]))  # strip dupes
-                    assigned = True
-            if not assigned:
-                self.personal_central_location = list(set([points[(len(regions) / 2)], points[(len(regions) / 2)]]))
+                point = Point(self.positionx, self.positiony)
+                assigned = False
 
-            # return to format
-            self.personal_central_location = [self.personal_central_location[0][0], self.personal_central_location[0][1]]
-        else:
-            self.personal_central_location = random.choice(points)
+                # update the agent's personal central location for each mode
+                for region, polygon in polygons:
+                    if polygon.contains(point):
+                        self.personal_central_locations[modes[index]] = list(set([location_group[region], location_group[region]]))  # strip dupes
+                        assigned = True
+                if not assigned:
+                    self.personal_central_locations[modes[index]] = list(set([location_group[(len(regions) / 2)], location_group[(len(regions) / 2)]]))
 
-    def set_home_location(self, x, y):
-        self.home_location = [x, y]
+                # return to format
+                self.personal_central_locations[modes[index]] = [self.personal_central_locations[modes[index]][0][0],
+                                                                 self.personal_central_locations[modes[index]][0][1]
+                                                                 ]
+                assert self.personal_central_locations[modes[index]] in points_list[index]
+            else:
+                self.personal_central_locations[modes[index]] = random.choice(location_group)
 
     def set_policy(self, health_policy, movement_policy):
         self.health_policy = health_policy
