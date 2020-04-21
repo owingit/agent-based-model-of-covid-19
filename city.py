@@ -91,7 +91,7 @@ class City:
         xs = self.width * np.random.uniform(0, 1, num_points)
         ys = self.height * np.random.uniform(0, 1, num_points)
         points = zip(xs, ys)
-        return points
+        return list(points)
 
     def get_states(self):
         """Returns dict of states.
@@ -151,8 +151,8 @@ class City:
         len_transits = len(transits)
         markets = [agent for agent in self.agents if agent.mode == 'market']
         len_markets = len(markets)
-        print('{} stayed home, {} went to work, {} went on the bus, {} went to the market'.format(
-            len_homes, len_works, len_transits, len_markets
+        print('{} stayed home ({} locations), {} went to work ({} locations), {} went on the bus ({} locations), {} went to the market ({} locations)'.format(
+            len_homes, len(self.homes), len_works, len(self.workspaces), len_transits, len(self.transit_hubs), len_markets, len(self.central_locations)
         ))
 
     def find_edge_candidates(self):
