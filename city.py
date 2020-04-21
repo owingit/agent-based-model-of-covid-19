@@ -44,7 +44,7 @@ class City:
 
         self.past_networks = []
         self.network = None
-        self.edge_proximity = 1.0 # proxy for infectivity
+        self.edge_proximity = 3.0  # proxy for infectivity
 
         self.agents = [Agent(i, self, self.beta, self.gamma) for i in range(0, self.N)]
         self.agent_dict = { v.number:v for v in self.agents}

@@ -36,20 +36,19 @@ class CityGraph:
             plot_dict_infected[i] = d['infected']
             plot_dict_removed[i] = d['removed']
 
-        title = "{}. {}x{}, {} agents. Ro: {}. {} and {}".format(self.name,
-                                                                 self.city.width,
-                                                                 self.city.height,
-                                                                 self.N,
-                                                                 self.beta * 1 / self.gamma,
-                                                                 self.city.policy.movement_policy,
-                                                                 self.city.policy.health_policy)
+        title = "{}. {}x{}, {} agents. Ro: {}. {} and {}. Edge proximity: {}".format(self.name,
+                                                                                     self.city.width,
+                                                                                     self.city.height,
+                                                                                     self.N,
+                                                                                     self.beta * 1 / self.gamma,
+                                                                                     self.city.policy.movement_policy,
+                                                                                     self.city.policy.health_policy,
+                                                                                     self.city.edge_proximity)
         style.use('ggplot')
         plt.title(title)
         plt.plot(list(plot_dict_susceptible.keys()), list(plot_dict_susceptible.values()), label="Susceptible")
         plt.plot(list(plot_dict_infected.keys()), list(plot_dict_infected.values()), label="Infected")
         plt.plot(list(plot_dict_removed.keys()), list(plot_dict_removed.values()), label="Removed")
-        point_label = "All agents in the system infected or removed."
-        plt.plot([self.timestep_of_convergence], [self.timestep_of_convergence], label=point_label)
         plt.xlabel('t')
         plt.ylabel('# agents in states S,I,R')
         plt.legend(loc='best')
