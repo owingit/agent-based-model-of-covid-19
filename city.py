@@ -89,6 +89,7 @@ class City:
                         'work': [],
                         'home': []
                         }
+
         for agent in self.agents:
             agent_used_regions = agent.set_and_verify_locations(
                 (market_regions, central_locations),
