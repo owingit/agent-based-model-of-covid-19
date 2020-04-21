@@ -21,7 +21,7 @@ class City:
         :param float beta: experimental beta value
         :param float gamma: experimental gamma denominator
         :param str hpolicy: health policy name
-        :param str mpolicy: movement policy name
+        :param list[str, dict] mpolicy: movement policy name
         '''
         self.beta = beta  # beta naught for covid 19
         self.gamma = gamma  # gamma naught for covid 19
@@ -40,15 +40,21 @@ class City:
 
         self.area = self.width * self.height
         self.central_locations = self.poisson_point_process(intensity=0.01)
-        self.transit_hubs = self.poisson_point_process(intensity=0.02)
-        self.workspaces = self.poisson_point_process(intensity=0.04)
-        self.homes = self.poisson_point_process(intensity=0.08)
+        self.transit_hubs = self.poisson_point_process(intensity=0.05)
+        self.workspaces = self.poisson_point_process(intensity=0.10)
+        self.homes = self.poisson_point_process(intensity=0.25)
 
         self.past_networks = []
         self.network = None
         self.edge_proximity = 3.0  # proxy for infectivity
+        try:
+            self.probabilities_dict = mpolicy[1]
+            self.agents = [Agent(i, self, self.beta, self.gamma, probs=self.probabilities_dict) for i in
+                           range(0, self.N)]
+        except IndexError:
+            self.agents = [Agent(i, self, self.beta, self.gamma) for i in
+                           range(0, self.N)]
 
-        self.agents = [Agent(i, self, self.beta, self.gamma) for i in range(0, self.N)]
         self.agent_dict = { v.number:v for v in self.agents}
         for agent in self.agents:
             agent.set_and_verify_locations(markets=self.central_locations,
@@ -116,7 +122,7 @@ class City:
         self.network = nx.Graph()
 
         # generate edges O(n^2)
-        print self.policy.health_policy, self.policy.movement_policy
+        print(self.policy.health_policy, self.policy.movement_policy)
         potential_edges = self.find_edge_candidates()
 
         # move nodes

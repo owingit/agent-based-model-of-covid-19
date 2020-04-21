@@ -9,14 +9,16 @@ from shapely.geometry.polygon import Polygon
 
 USE_VORONOI = False
 
+
 class Agent:
-    def __init__(self, i, City, beta, gamma):
+    def __init__(self, i, City, beta, gamma, **kwargs):
         '''Defines an agent, which represents a node in the city-level infection network.
 
         :param int i: num
         :param city.City City: City object encompassing the agent
         :param float beta: experimental beta value
         :param float gamma: experimental gamma denominator
+        :param **kwargs
         '''
         # attributes
         self.infection_beta = beta
@@ -40,10 +42,13 @@ class Agent:
 
         self.mode = None
         self.personal_central_locations = {}
-        self.stay_at_home_probability = 0.5  # 6 days out of a week, on average
-        self.work_probability = 0.3
-        self.transit_probability = 0.1
-        self.shop_probability = 0.1
+        if kwargs:
+            probs = kwargs['probs']
+            self.stay_at_home_probability = probs['home']  # 6 days out of a week, on average
+            self.work_probability = probs['work']
+            self.transit_probability = probs['transit']
+            self.shop_probability = probs['market']
+            assert self.stay_at_home_probability + self.work_probability + self.transit_probability + self.shop_probability <= 1.0, "Probability imbalance!"
 
         self.theta_star = np.linspace(-(math.pi / 2), (math.pi / 2), 100)
         self.movement_angle_at_current_timestep = self.theta_star[random.randint(0, 99)]
@@ -69,10 +74,10 @@ class Agent:
         '''
         if self.health_policy == 'social_distancing':
             self.recalculate_vector_based_on_policy()
-        if self.movement_policy == '2d_random_walk':
+        if self.movement_policy[0] == '2d_random_walk':
             self.twod_random_walk()
 
-        if self.movement_policy == 'preferential_return':
+        if self.movement_policy[0] == 'preferential_return':
             self.preferential_return()
 
         self.recalculate_positions_based_on_edges(self.city)

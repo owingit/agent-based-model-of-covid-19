@@ -10,7 +10,8 @@ import sys
 GAMMAS = np.linspace(1.0, 20.0, num=20)  # infection length (days)
 BETAS = np.linspace(1.0, 100.0, num=100) / 100
 DO_PARAMETER_SWEEP = False
-COVID_Ro = 5.7  # gamma and min/max ro values from https://wwwnc.cdc.gov/eid/article/26/7/20-0282_article
+# COVID_Ro = 5.7  # gamma and min/max ro values from https://wwwnc.cdc.gov/eid/article/26/7/20-0282_article
+COVID_Ro = 3.8
 COVID_Gamma = 18.0
 COVID_Beta = COVID_Ro / COVID_Gamma
 
@@ -73,8 +74,8 @@ def construct_cities(beta, gamma_denom):
     ns = [1500, 3000]
     hpolicy_a = 'social_distancing'
     hpolicy_b = 'normal'
-    mpolicy_a = '2d_random_walk'
-    mpolicy_b = 'preferential_return'
+    mpolicy_a = ['2d_random_walk']
+    mpolicy_b = ['preferential_return', {'home': 0.5, 'work': 0.3, 'market': 0.1, 'transit': 0.1}]
     cities = [City('Boulder', ws[0], hs[0], ns[0], beta, gamma, hpolicy_b, mpolicy_a),
               City('Denver', ws[1], hs[1], ns[0], beta, gamma, hpolicy_b, mpolicy_b)]
               # City('Fort Collins', ws[0], hs[0], ns[0], beta, gamma, hpolicy_a, mpolicy_b),
