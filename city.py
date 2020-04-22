@@ -1,5 +1,6 @@
 import math
 import random
+import collections
 import policy
 import numpy as np
 import itertools
@@ -38,35 +39,94 @@ class City:
         self.datafile = '{}x{}x{}parameter_sweep_data.txt'.format(self.width, self.height, self.N)
 
         self.area = self.width * self.height
+        self.agents_per_market = 50
+        self.agents_per_transit = 100
+        self.agents_per_work = 15
+        self.agents_per_home = 3
 
         self.past_networks = []
         self.network = None
         self.edge_proximity = edge_proximity  # proxy for infectivity
         self.agents = [Agent(i, self) for i in range(0, self.N)]
 
-        self.central_locations = self.poisson_point_process(
-            intensity=(self.N / self.area) / 50)  # one grocery store for every 50 agents
-        self.transit_hubs = self.poisson_point_process(
-            intensity=(self.N / self.area) / 100)  # one public transit for every 100 agents
-        self.workspaces = self.poisson_point_process(
-            intensity=(self.N / self.area) / 15)  # one workplace for every 15 agents
-        self.homes = self.poisson_point_process(intensity=(self.N / self.area) / 3)  # one home per every 3 agents
-
-        market_regions, transit_regions, work_regions, home_regions = self.setup_voronoi_diagrams(
-            markets=self.central_locations,
-            transits=self.transit_hubs,
-            workspaces=self.workspaces,
-            homes=self.homes)
-
-        for agent in self.agents:
-            agent.set_and_verify_locations(
-                (market_regions, self.central_locations),
-                (transit_regions, self.transit_hubs),
-                (work_regions, self.workspaces),
-                (home_regions, self.homes)
-            )
+        self.setup_agent_central_locations()
+        #
+        # for agent in self.agents:
+        #     print('{} has locations work:{}\nhome:{}\nmarket:{}\ntransit:{}\n'.format(agent.name,
+        #                                                                               agent.personal_central_locations['work'],
+        #                                                                               agent.personal_central_locations['home'],
+        #                                                                               agent.personal_central_locations['market'],
+        #                                                                               agent.personal_central_locations['transit']
+        #                                                                               ))
         self.agent_dict = {v.number: v for v in self.agents}
         self.policy = policy.Policy(self.name, self.agents, self.hpolicy, self.mpolicy, self.area)
+
+    def setup_agent_central_locations(self):
+        """Function to initialize central locations for each agent.
+
+        Based on the voronoi diagrams around points chosen by a Poisson point process
+        """
+        central_locations = self.poisson_point_process(
+            intensity=(self.N / self.area) / self.agents_per_market)  # one grocery store for every 50 agents
+        transit_hubs = self.poisson_point_process(
+            intensity=(self.N / self.area) / self.agents_per_transit)  # one public transit for every 100 agents
+        workspaces = self.poisson_point_process(
+            intensity=(self.N / self.area) / self.agents_per_work)  # one workplace for every 15 agents
+        homes = self.poisson_point_process(intensity=(self.N / self.area) / self.agents_per_home)  #  one home per every 3 agents
+        #print(len(set(homes)), len(set(central_locations)), len(set(transit_hubs)), len(set(workspaces)))
+
+        market_regions, transit_regions, work_regions, home_regions = self.setup_voronoi_diagrams(
+            markets=central_locations,
+            transits=transit_hubs,
+            workspaces=workspaces,
+            homes=homes)
+        #print(len(home_regions), len(market_regions), len(transit_regions), len(work_regions))
+
+        used_regions = {'market': [],
+                        'transit': [],
+                        'work': [],
+                        'home': []
+                        }
+        for agent in self.agents:
+            agent_used_regions = agent.set_and_verify_locations(
+                (market_regions, central_locations),
+                (transit_regions, transit_hubs),
+                (work_regions, workspaces),
+                (home_regions, homes)
+            )
+
+            used_regions['market'].append(agent_used_regions['market'])
+            used_regions['transit'].append(agent_used_regions['transit'])
+            used_regions['work'].append(agent_used_regions['work'])
+            used_regions['home'].append(agent_used_regions['home'])
+
+            self.remove_overutilized_regions(agent_used_regions, used_regions,
+                                             market_regions, transit_regions,
+                                             work_regions, home_regions)
+
+    def remove_overutilized_regions(self, agent_used_regions, used_regions, market_regions,
+                                    transit_regions, work_regions, home_regions):
+        """If a region has too many points within it, exclude it so that central locations are better distributed."""
+
+        if used_regions['market'].count(agent_used_regions['market']) > self.agents_per_market:
+            _region_to_remove = [tup for tup in market_regions if tup[0] == agent_used_regions.get('market')]
+            if _region_to_remove:
+                market_regions.remove(_region_to_remove[0])
+
+        if used_regions['transit'].count(agent_used_regions['transit']) > self.agents_per_transit:
+            _region_to_remove = [tup for tup in transit_regions if tup[0] == agent_used_regions.get('transit')]
+            if _region_to_remove:
+                transit_regions.remove(_region_to_remove[0])
+
+        if used_regions['work'].count(agent_used_regions['work']) > self.agents_per_work:
+            _region_to_remove = [tup for tup in work_regions if tup[0] == agent_used_regions.get('work')]
+            if _region_to_remove:
+                work_regions.remove(_region_to_remove[0])
+
+        if used_regions['home'].count(agent_used_regions['home']) > self.agents_per_home:
+            _region_to_remove = [tup for tup in home_regions if tup[0] == agent_used_regions.get('home')]
+            if _region_to_remove:
+                home_regions.remove(_region_to_remove[0])
 
     def setup_voronoi_diagrams(self, markets, transits, workspaces, homes):
         """
@@ -100,8 +160,7 @@ class City:
                         i = i % len(location_group)
                     polygons.append((i, polygon))
             polygons_dict[modes[index]].extend(polygons)
-
-        return polygons_dict.values()
+        return polygons_dict['market'], polygons_dict['transit'], polygons_dict['work'], polygons_dict['home']
 
     def print_width(self):
         print('{} is {} units wide'.format(self.name, self.width))
@@ -161,17 +220,18 @@ class City:
         '''
         self.network = nx.Graph()
 
-        # generate edges O(n^2)
-        print(self.policy.health_policy, self.policy.movement_policy[1][i])
-        potential_edges = self.find_edge_candidates(i)
-
         # move nodes
         # generate nodes O(n)
         for agent in self.agents:
-            agent.move()
+            agent.set_policy(health_policy=self.hpolicy, movement_policy=self.mpolicy, i=i)
+            if i > 0:
+                agent.move()
             self.network.add_node(agent)
 
-        # generate edges (O|E|)
+        # generate edges O(n^2)
+        potential_edges = self.find_edge_candidates()
+
+        # add O(|E)
         for edge_number_tuple in potential_edges:
             self.network.add_edge(self.agents[edge_number_tuple[0]], self.agents[edge_number_tuple[1]])
 
@@ -193,12 +253,13 @@ class City:
         len_transits = len(transits)
         markets = [agent for agent in self.agents if agent.mode == 'market']
         len_markets = len(markets)
-        print('{} stayed home, {} went to work, {} went on the bus, {} went to the market'.format(
-            len_homes, len_works, len_transits, len_markets
-        ))
+        if i > 0:
+            print('{} stayed home, {} went to work, {} went on the bus, {} went to the market'.format(
+                len_homes, len_works, len_transits, len_markets
+            ))
         return beta
 
-    def find_edge_candidates(self, i):
+    def find_edge_candidates(self):
         """See if a node is close enough to another node to count as an edge.
 
         Update the health policy and replace the node in self.agents with the modified node.
@@ -206,7 +267,6 @@ class City:
         :param int i: timestep
         """
         potential_edges = []
-        agents_to_swap = []
         for pair in list(itertools.combinations(self.agents, r=2)):
             d = np.sqrt(
                 # euclidean distance
@@ -214,26 +274,9 @@ class City:
             )
             agent_a = pair[0]
             agent_b = pair[1]
-            agent_a.set_policy(self.policy.health_policy, self.policy.movement_policy, i)
-            agent_b.set_policy(self.policy.health_policy, self.policy.movement_policy, i)
-            if d <= self.policy.policy_distance and self.policy.health_policy == 'social_distancing':
-                # if the distance is less than social distancing policy distance
-                agent_a.activate_health_policy()
-                agent_b.activate_health_policy()
-            agents_to_swap.append(agent_a)
-            agents_to_swap.append(agent_b)
-
             if d <= self.edge_proximity:
                 # we know you would be repulsed, so we add you to a data structure here
                 potential_edges.append((agent_a.number, agent_b.number))
-
-        # update list O(|V|)
-        for agent_to_swap in agents_to_swap:
-            #  swap agent in self.agents with agent_a and agent_b
-            old_agent = self.agent_dict[agent_to_swap.number]
-            assert old_agent.name == agent_to_swap.name
-            assert self.agents[old_agent.number].name == agent_to_swap.name
-            self.agents[old_agent.number] = agent_to_swap
 
         return potential_edges
 
@@ -248,12 +291,13 @@ class City:
         agent.timesteps_infected += 1
         adjacency_list = self.network[agent]
         si_transition_rate = 0
+        msg = 'infected_agent {} went to {} and infected {}'
         if len(adjacency_list) > 0:
             susceptible_neighbors = [neighbor for neighbor in adjacency_list if neighbor.is_susceptible()]
             if len(susceptible_neighbors) > 0:
+                print(msg.format(agent.name, agent.mode, len(susceptible_neighbors)))
                 si_transition_rate = len(susceptible_neighbors) / self.N
                 for neighbor in susceptible_neighbors:
-                    print('Transitioning {} to infected'.format(neighbor.name))
                     self.agents[neighbor.number].transition_state('infected')
                     self.num_susceptible -= 1
                     self.num_infected += 1

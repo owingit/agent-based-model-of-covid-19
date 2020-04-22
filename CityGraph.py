@@ -49,15 +49,15 @@ class CityGraph:
             plot_dict_infected[i] = d['infected']
             plot_dict_removed[i] = d['removed']
 
-        movement_policy = self.city.policy.movement_policy[1][-1]
+        movement_policy = self.city.policy.movement_policy[1][len(self.xs)-1]
 
         title = "{}. {}x{}, {} agents. {} and {}. Edge proximity: {}".format(self.name,
-                                                                                     self.city.width,
-                                                                                     self.city.height,
-                                                                                     self.N,
-                                                                                     movement_policy,
-                                                                                     self.city.policy.health_policy,
-                                                                                     self.city.edge_proximity)
+                                                                             self.city.width,
+                                                                             self.city.height,
+                                                                             self.N,
+                                                                             movement_policy,
+                                                                             self.city.policy.health_policy,
+                                                                             self.city.edge_proximity)
         style.use('ggplot')
         plt.title(title)
         plt.plot(list(plot_dict_susceptible.keys()), list(plot_dict_susceptible.values()), label="Susceptible")

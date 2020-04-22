@@ -8,7 +8,6 @@ from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
 
 
-
 class Agent:
     def __init__(self, i, City):
         '''Defines an agent, which represents a node in the city-level infection network.
@@ -117,8 +116,10 @@ class Agent:
         self.mode = mode
         # print('{} in {} mode in {} state'.format(self.name, self.mode, self.state))
         assert self.mode
-        self.positionx = self.personal_central_locations[self.mode][0]
-        self.positiony = self.personal_central_locations[self.mode][1]
+        self.prior_x_position = self.positionx
+        self.prior_y_position = self.positiony
+        self.positionx = list(self.personal_central_locations[self.mode])[0]
+        self.positiony = list(self.personal_central_locations[self.mode])[1]
 
     def recalculate_positions_based_on_edges(self, city):
         '''Adjust the positions of an agent based on the city's boundaries.
@@ -193,24 +194,37 @@ class Agent:
         """
         point = Point(self.positionx, self.positiony)
 
-        enumerated_regions = [('market', market_regions[0]), ('transit', transit_regions[0]),
-                              ('work', workspace_regions[0]), ('home', home_regions[0])]
+        enumerated_regions = {'market': market_regions[0],
+                              'transit': transit_regions[0],
+                              'work': workspace_regions[0],
+                              'home': home_regions[0]
+                              }
 
         enumerated_points = {'market': market_regions[1],
                              'transit': transit_regions[1],
                              'work': workspace_regions[1],
                              'home': home_regions[1]}
         # update the agent's personal central location for each mode
-        for id, poly_tuples in enumerated_regions:
+        used_regions = {'market': None,
+                        'transit': None,
+                        'work': None,
+                        'home': None
+                        }
+
+        for id, poly_tuples in enumerated_regions.items():
             assigned = False
             for region, polygon in poly_tuples:
                 if polygon.contains(point) and not assigned:
-                    self.personal_central_locations[id] = list(set([enumerated_points[id][region][0], enumerated_points[id][region][1]]))  # strip dupes
+                    self.personal_central_locations[id] = frozenset([enumerated_points[id][region][0], enumerated_points[id][region][1]])  # strip dupes
                     assigned = True
-            if not assigned:
-                self.personal_central_locations[id] = list(set([enumerated_points[id][int(len(enumerated_points) / 2)][0], enumerated_points[id][int(len(enumerated_points) / 2)][1]]))
+                    used_regions[id] = region
 
-            # return to format
+            if not assigned:
+                random_index = random.randint(0, len(poly_tuples)) % len(enumerated_points[id])
+                self.personal_central_locations[id] = frozenset([enumerated_points[id][random_index][0], enumerated_points[id][random_index][1]])
+                used_regions[id] = random_index
+
+        return used_regions
 
     def set_policy(self, health_policy, movement_policy, i):
         self.health_policy = health_policy

@@ -20,7 +20,7 @@ def main():
             for gamma in GAMMAS:
                 setup_and_run(timesteps, edge_proximity, gamma)
     else:
-        setup_and_run(timesteps, 1.0, COVID_Gamma)
+        setup_and_run(timesteps, 0.001, COVID_Gamma)
 
 
 def setup_and_run(timesteps, edge_proximity, gamma):
@@ -79,8 +79,8 @@ def construct_cities(edge_proximity, gamma_denom, timesteps):
     location_policies_dict_c = construct_location_policies_dict(intent, timesteps)
     mpolicy_c = ['preferential_return', location_policies_dict_c]
 
-    ws = [100, 100]
-    hs = [100, 100]
+    ws = [200, 200]
+    hs = [200, 200]
     ns = [1500, 3000]
     hpolicy_a = 'social_distancing'
     hpolicy_b = 'normal'
@@ -108,10 +108,7 @@ def construct_location_policies_dict(intent, timesteps):
     }
     location_policies_dict = {}
     for i in range(0, timesteps):
-        if i < 10:
-            location_policies_dict[i] = location_policies['normal']
-        else:
-            location_policies_dict[i] = location_policies[intent]
+        location_policies_dict[i] = location_policies[intent]
     return location_policies_dict
 
 
