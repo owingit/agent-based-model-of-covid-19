@@ -10,5 +10,5 @@ class Policy():
         self.health_policy = hpolicy
         self.policy_distance = 4.0
 
-    def unset_health_policy(self):
-        self.health_policy = None
+    def update(self, probabilities_dict):
+        self.movement_policy[1] = probabilities_dict

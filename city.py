@@ -39,29 +39,70 @@ class City:
         self.datafile = '{}x{}x{}parameter_sweep_data.txt'.format(self.width, self.height, self.N)
 
         self.area = self.width * self.height
-        self.central_locations = self.poisson_point_process(intensity=0.01)
-        self.transit_hubs = self.poisson_point_process(intensity=0.05)
-        self.workspaces = self.poisson_point_process(intensity=0.10)
-        self.homes = self.poisson_point_process(intensity=0.25)
 
         self.past_networks = []
         self.network = None
-        self.edge_proximity = 3.0  # proxy for infectivity
-        try:
-            self.probabilities_dict = mpolicy[1]
-            self.agents = [Agent(i, self, self.beta, self.gamma, probs=self.probabilities_dict) for i in
-                           range(0, self.N)]
-        except IndexError:
-            self.agents = [Agent(i, self, self.beta, self.gamma) for i in
-                           range(0, self.N)]
+        self.edge_proximity = 2.0  # proxy for infectivity
+        self.agents = [Agent(i, self, self.beta, self.gamma) for i in range(0, self.N)]
 
-        self.agent_dict = { v.number:v for v in self.agents}
+        self.central_locations = self.poisson_point_process(
+            intensity=(self.N / self.area) / 50)  # one grocery store for every 50 agents
+        self.transit_hubs = self.poisson_point_process(
+            intensity=(self.N / self.area) / 100)  # one public transit for every 100 agents
+        self.workspaces = self.poisson_point_process(
+            intensity=(self.N / self.area) / 15)  # one workplace for every 15 agents
+        self.homes = self.poisson_point_process(intensity=(self.N / self.area) / 3)  # one home per every 3 agents
+
+        market_regions, transit_regions, work_regions, home_regions = self.setup_voronoi_diagrams(
+            markets=self.central_locations,
+            transits=self.transit_hubs,
+            workspaces=self.workspaces,
+            homes=self.homes)
+
         for agent in self.agents:
-            agent.set_and_verify_locations(markets=self.central_locations,
-                                           transits=self.transit_hubs,
-                                           workspaces=self.workspaces,
-                                           homes=self.homes)
+            agent.set_and_verify_locations(
+                (market_regions, self.central_locations),
+                (transit_regions, self.transit_hubs),
+                (work_regions, self.workspaces),
+                (home_regions, self.homes)
+            )
+        self.agent_dict = {v.number: v for v in self.agents}
         self.policy = policy.Policy(self.name, self.agents, self.hpolicy, self.mpolicy, self.area)
+
+    def setup_voronoi_diagrams(self, markets, transits, workspaces, homes):
+        """
+        Creates voronoi diagrams where the centers of each region are the points marked by the poisson point process.
+
+        :param markets: list of market points
+        :param transits: list of transit points
+        :param workspaces: list of work points
+        :param homes: list of home points
+        :return: tuple of voronoi regions
+        """
+        print('Setting up {} fixed locations'.format(self.name))
+        modes = ['market', 'transit', 'work', 'home']
+        points_list = [markets, transits, workspaces, homes]
+        polygons_dict = {mode: [] for mode in modes}
+        for index, location_group in enumerate(points_list):
+            vor = Voronoi(location_group)
+            vertices = vor.vertices
+            regions = vor.regions
+            regions.remove([])
+            polygons = []
+            for i, reg in enumerate(regions):
+                if len(reg) > 3:
+                    polygon_vertices = vertices[reg]
+                    point_pairs = []
+                    for pair in polygon_vertices:
+                        point_pair = (pair[0], pair[1])
+                        point_pairs.append(point_pair)
+                    polygon = Polygon(point_pairs)
+                    if i > len(location_group):
+                        i = i % len(location_group)
+                    polygons.append((i, polygon))
+            polygons_dict[modes[index]].extend(polygons)
+
+        return polygons_dict.values()
 
     def print_width(self):
         print('{} is {} units wide'.format(self.name, self.width))
@@ -122,8 +163,8 @@ class City:
         self.network = nx.Graph()
 
         # generate edges O(n^2)
-        print(self.policy.health_policy, self.policy.movement_policy)
-        potential_edges = self.find_edge_candidates()
+        print(self.policy.health_policy, self.policy.movement_policy[1][i])
+        potential_edges = self.find_edge_candidates(i)
 
         # move nodes
         # generate nodes O(n)
@@ -151,14 +192,16 @@ class City:
         len_transits = len(transits)
         markets = [agent for agent in self.agents if agent.mode == 'market']
         len_markets = len(markets)
-        print('{} stayed home ({} locations), {} went to work ({} locations), {} went on the bus ({} locations), {} went to the market ({} locations)'.format(
-            len_homes, len(self.homes), len_works, len(self.workspaces), len_transits, len(self.transit_hubs), len_markets, len(self.central_locations)
+        print('{} stayed home, {} went to work, {} went on the bus, {} went to the market'.format(
+            len_homes, len_works, len_transits, len_markets
         ))
 
-    def find_edge_candidates(self):
+    def find_edge_candidates(self, i):
         """See if a node is close enough to another node to count as an edge.
 
         Update the health policy and replace the node in self.agents with the modified node.
+
+        :param int i: timestep
         """
         potential_edges = []
         agents_to_swap = []
@@ -169,14 +212,14 @@ class City:
             )
             agent_a = pair[0]
             agent_b = pair[1]
-            agent_a.set_policy(self.policy.health_policy, self.policy.movement_policy)
-            agent_b.set_policy(self.policy.health_policy, self.policy.movement_policy)
+            agent_a.set_policy(self.policy.health_policy, self.policy.movement_policy, i)
+            agent_b.set_policy(self.policy.health_policy, self.policy.movement_policy, i)
             if d <= self.policy.policy_distance and self.policy.health_policy == 'social_distancing':
                 # if the distance is less than social distancing policy distance
-                agent_a.health_policy = self.policy.health_policy
-                agent_b.movement_policy = self.policy.movement_policy
-                agents_to_swap.append(agent_a)
-                agents_to_swap.append(agent_b)
+                agent_a.activate_health_policy()
+                agent_b.activate_health_policy()
+            agents_to_swap.append(agent_a)
+            agents_to_swap.append(agent_b)
 
             if d <= self.edge_proximity:
                 # we know you would be repulsed, so we add you to a data structure here

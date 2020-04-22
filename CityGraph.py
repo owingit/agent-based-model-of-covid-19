@@ -36,7 +36,9 @@ class CityGraph:
             plot_dict_infected[i] = d['infected']
             plot_dict_removed[i] = d['removed']
 
-        title = "{}. {}x{}, {} agents. Ro: {}. {} and {}. Edge proximity: {}".format(self.name,
+        movement_policy = self.city.policy.movement_policy[1][-1]
+
+        title = "{}. {}x{}, {} agents.\n Ro: {}\n. {} and {}. Edge proximity: {}".format(self.name,
                                                                                      self.city.width,
                                                                                      self.city.height,
                                                                                      self.N,

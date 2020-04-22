@@ -33,7 +33,7 @@ def setup_and_run(timesteps, beta, gamma):
     :param beta: beta parameter (proxy for infection rate)
     :param gamma: gamma parameter (proxy for recovery rate)
     """
-    cities = construct_cities(beta, gamma)
+    cities = construct_cities(beta, gamma, timesteps)
 
     for city in cities:
         city.set_initial_states()
@@ -60,24 +60,34 @@ def setup_and_run(timesteps, beta, gamma):
         #cg.write_data()
 
 
-def construct_cities(beta, gamma_denom):
+def construct_cities(beta, gamma_denom, timesteps):
     """Initialize cities with different policies, beta, gamma values. Right now they're all the same size/population
 
     :param float beta: experimental beta value
     :param float gamma_denom: gamma denominator
+    :param int timesteps
     :returns: list of city objects"""
     # TODO: different Ro for different cities, based on data?
     gamma = 1.0 / gamma_denom
+
+    intent = 'tight'
+    location_policies_dict_a = construct_location_policies_dict(intent, timesteps)
+    mpolicy_a = ['preferential_return', location_policies_dict_a]
+    intent = 'lax'
+    location_policies_dict_b = construct_location_policies_dict(intent, timesteps)
+    mpolicy_b = ['preferential_return', location_policies_dict_b]
+    intent = 'normal'
+    location_policies_dict_c = construct_location_policies_dict(intent, timesteps)
+    mpolicy_c = ['preferential_return', location_policies_dict_c]
 
     ws = [100, 100]
     hs = [100, 100]
     ns = [1500, 3000]
     hpolicy_a = 'social_distancing'
     hpolicy_b = 'normal'
-    mpolicy_a = ['2d_random_walk']
-    mpolicy_b = ['preferential_return', {'home': 0.5, 'work': 0.3, 'market': 0.1, 'transit': 0.1}]
-    cities = [City('Boulder', ws[0], hs[0], ns[0], beta, gamma, hpolicy_b, mpolicy_a),
-              City('Denver', ws[1], hs[1], ns[0], beta, gamma, hpolicy_b, mpolicy_b)]
+    cities = [City('Boulder', ws[0], hs[0], ns[0], beta, gamma, hpolicy_a, mpolicy_a),
+              City('Denver', ws[1], hs[1], ns[0], beta, gamma, hpolicy_b, mpolicy_b),
+              City('Mixopolis', ws[1], hs[1], ns[0], beta, gamma, hpolicy_b, mpolicy_c)]
               # City('Fort Collins', ws[0], hs[0], ns[0], beta, gamma, hpolicy_a, mpolicy_b),
               # City('Colorado Springs', ws[1], hs[1], ns[0], beta, gamma, hpolicy_b, mpolicy_a),
               # City('DenserBoulder', ws[0], hs[0], ns[1], beta, gamma, hpolicy_a, mpolicy_a),
@@ -85,6 +95,22 @@ def construct_cities(beta, gamma_denom):
               # City('DenserFort Collins', ws[0], hs[0], ns[1], beta, gamma, hpolicy_a, mpolicy_b),
               # City('DenserColorado Springs', ws[1], hs[1], ns[1], beta, gamma, hpolicy_b, mpolicy_a)]
     return cities
+
+
+def construct_location_policies_dict(intent, timesteps):
+    """Make policy different at each timestep."""
+    location_policies = {
+        'lax': {'home': 0.5, 'work': 0.3, 'market': 0.1, 'transit': 0.1},
+        'tight': {'home': 0.9, 'work': 0.05, 'market': 0.03, 'transit': 0.02},
+        'normal': {'home': 0.25, 'work': 0.25, 'market': 0.25, 'transit': 0.25}
+    }
+    location_policies_dict = {}
+    for i in range(0, timesteps):
+        if i < 10:
+            location_policies_dict[i] = location_policies['normal']
+        else:
+            location_policies_dict[i] = location_policies[intent]
+    return location_policies_dict
 
 
 if __name__ == "__main__":
