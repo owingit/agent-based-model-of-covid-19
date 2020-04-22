@@ -68,7 +68,7 @@ class Agent:
         if self.movement_policy[0] == '2d_random_walk':
             self.twod_random_walk()
 
-        if self.movement_policy[0] == 'preferential_return':
+        if 'preferential_return' in self.movement_policy[0]:
             self.preferential_return()
 
         self.recalculate_positions_based_on_edges(self.city)
@@ -227,13 +227,22 @@ class Agent:
         return used_regions
 
     def set_policy(self, health_policy, movement_policy, i):
+        critical_value = self.city.N / 5
         self.health_policy = health_policy
         self.movement_policy = movement_policy
         if self.movement_policy[1]:
-            self.shop_probability = self.movement_policy[1][i]['market']
-            self.stay_at_home_probability = self.movement_policy[1][i]['home']
-            self.transit_probability = self.movement_policy[1][i]['transit']
-            self.work_probability = self.movement_policy[1][i]['work']
+            probs_dict = self.movement_policy[1][i]
+            if i % critical_value == 0 and 'essential' in movement_policy[0]:
+                probs_dict = {'market': 0.00,
+                              'transit': 0.30,
+                              'work': 0.40,
+                              'home': 0.30
+                              }
+
+            self.shop_probability = probs_dict['market']
+            self.stay_at_home_probability = probs_dict['home']
+            self.transit_probability = probs_dict['transit']
+            self.work_probability = probs_dict['work']
 
     def is_infected(self):
         return self.infected

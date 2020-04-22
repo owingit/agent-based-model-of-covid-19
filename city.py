@@ -59,7 +59,7 @@ class City:
         #                                                                               agent.personal_central_locations['transit']
         #                                                                               ))
         self.agent_dict = {v.number: v for v in self.agents}
-        self.policy = policy.Policy(self.name, self.agents, self.hpolicy, self.mpolicy, self.area)
+        self.policy = policy.Policy(self.name, self.agents, self.hpolicy, self.mpolicy)
 
     def setup_agent_central_locations(self):
         """Function to initialize central locations for each agent.
@@ -298,10 +298,11 @@ class City:
                 print(msg.format(agent.name, agent.mode, len(susceptible_neighbors)))
                 si_transition_rate = len(susceptible_neighbors) / self.N
                 for neighbor in susceptible_neighbors:
-                    self.agents[neighbor.number].transition_state('infected')
-                    self.num_susceptible -= 1
-                    self.num_infected += 1
-                    self.agents[neighbor.number].transitioned_this_timestep = True
+                    if random.random() < si_transition_rate:
+                        self.agents[neighbor.number].transition_state('infected')
+                        self.num_susceptible -= 1
+                        self.num_infected += 1
+                        self.agents[neighbor.number].transitioned_this_timestep = True
 
         if agent.timesteps_infected >= (1 / self.gamma):
             print('Transitioning {} to removed'.format(agent.name))

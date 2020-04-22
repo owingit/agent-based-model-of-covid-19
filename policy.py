@@ -3,8 +3,7 @@ import math
 
 
 class Policy():
-    def __init__(self, name, agents, hpolicy, mpolicy, area):
-        self.city = name
+    def __init__(self, name, agents, hpolicy, mpolicy):
         self.agents = agents
         self.movement_policy = mpolicy
         self.health_policy = hpolicy

@@ -75,9 +75,9 @@ def construct_cities(edge_proximity, gamma_denom, timesteps):
     intent = 'lax'
     location_policies_dict_b = construct_location_policies_dict(intent, timesteps)
     mpolicy_b = ['preferential_return', location_policies_dict_b]
-    intent = 'normal'
+    intent = 'lockdown'
     location_policies_dict_c = construct_location_policies_dict(intent, timesteps)
-    mpolicy_c = ['preferential_return', location_policies_dict_c]
+    mpolicy_c = ['preferential_return_essential', location_policies_dict_c]
 
     ws = [200, 200]
     hs = [200, 200]
@@ -104,7 +104,8 @@ def construct_location_policies_dict(intent, timesteps):
     location_policies = {
         'lax': {'home': 0.5, 'work': 0.3, 'market': 0.1, 'transit': 0.1},
         'tight': {'home': 0.9, 'work': 0.05, 'market': 0.03, 'transit': 0.02},
-        'normal': {'home': 0.25, 'work': 0.25, 'market': 0.25, 'transit': 0.25}
+        'normal': {'home': 0.25, 'work': 0.25, 'market': 0.25, 'transit': 0.25},
+        'lockdown': {'home': 0.99, 'work': 0.00, 'market': 0.01, 'transit': 0.00},
     }
     location_policies_dict = {}
     for i in range(0, timesteps):
