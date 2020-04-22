@@ -102,13 +102,15 @@ def construct_cities(edge_proximity, gamma_denom, timesteps):
 def construct_location_policies_dict(intent, timesteps):
     """Make policy different at each timestep."""
     location_policies = {
-        'lax': {'home': 0.5, 'work': 0.3, 'market': 0.1, 'transit': 0.1},
+        'lax': {'home': 0.3, 'work': 0.3, 'market': 0.1, 'transit': 0.3},
         'tight': {'home': 0.9, 'work': 0.05, 'market': 0.03, 'transit': 0.02},
         'normal': {'home': 0.25, 'work': 0.25, 'market': 0.25, 'transit': 0.25},
         'lockdown': {'home': 0.99, 'work': 0.00, 'market': 0.01, 'transit': 0.00},
     }
     location_policies_dict = {}
     for i in range(0, timesteps):
+        if i < 3:
+            location_policies_dict[i] = location_policies['lax']
         location_policies_dict[i] = location_policies[intent]
     return location_policies_dict
 
