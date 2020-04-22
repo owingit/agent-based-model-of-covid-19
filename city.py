@@ -41,6 +41,9 @@ class City:
 
         self.past_networks = []
         self.network = None
+        self.edge_proximity = edge_proximity  # proxy for infectivity
+        self.agents = [Agent(i, self) for i in range(0, self.N)]
+
         self.central_locations = self.poisson_point_process(
             intensity=(self.N / self.area) / 50)  # one grocery store for every 50 agents
         self.transit_hubs = self.poisson_point_process(
@@ -54,15 +57,6 @@ class City:
             transits=self.transit_hubs,
             workspaces=self.workspaces,
             homes=self.homes)
-
-        self.edge_proximity = edge_proximity  # proxy for infectivity
-        try:
-            self.probabilities_dict = mpolicy[1]
-            self.agents = [Agent(i, self, probs=self.probabilities_dict) for i in
-                           range(0, self.N)]
-        except IndexError:
-            self.agents = [Agent(i, self) for i in
-                           range(0, self.N)]
 
         for agent in self.agents:
             agent.set_and_verify_locations(
