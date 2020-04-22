@@ -132,6 +132,7 @@ def construct_location_policies_dict(intent, timesteps):
         else:
             location_policies_dict[i] = LOCATION_POLICIES[intent]
     POLICIES[intent] = location_policies_dict
+
     return location_policies_dict
 
 
