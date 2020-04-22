@@ -68,7 +68,7 @@ class Agent:
         if self.movement_policy[0] == '2d_random_walk':
             self.twod_random_walk()
 
-        if self.movement_policy[0] == 'preferential_return':
+        if 'preferential_return' in self.movement_policy[0]:
             self.preferential_return()
 
         self.recalculate_positions_based_on_edges(self.city)

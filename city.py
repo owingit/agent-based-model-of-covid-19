@@ -24,6 +24,7 @@ class City:
         :param str hpolicy: health policy name
         :param list[str, dict] mpolicy: movement policy name
         '''
+        self.POLICIES = None
         self.gamma = gamma  # gamma naught for covid 19
         self.num_infected = 0
         self.num_removed = 0
@@ -208,6 +209,9 @@ class City:
         print('City: {}\nSusceptible: {}\nInfected: {}\nRemoved: {}\n'.format(
             self.name, self.num_susceptible, self.num_infected, self.num_removed))
 
+    def view_all_policies(self, policies_dict):
+        self.POLICIES = policies_dict
+
     def timestep(self, i):
         '''One unit of time in a city.
 
@@ -223,7 +227,14 @@ class City:
         # move nodes
         # generate nodes O(n)
         for agent in self.agents:
-            agent.set_policy(health_policy=self.hpolicy, movement_policy=self.mpolicy, i=i)
+            if 'essential' in self.mpolicy[0]:
+                if agent.number % 50 == 0:  # 50 essential workers
+                    agent.set_policy(health_policy=self.hpolicy, movement_policy=self.mpolicy, i=i)
+                else:
+                    agent.set_policy(health_policy=self.hpolicy, movement_policy=('preferential_return_stay_at_home',
+                                                                                  self.POLICIES['stay_at_home']), i=i)
+            else:
+                agent.set_policy(health_policy=self.hpolicy, movement_policy=self.mpolicy, i=i)
             if i > 0:
                 agent.move()
             self.network.add_node(agent)
@@ -241,8 +252,10 @@ class City:
         SI_transition_rates = []
         for agent in self.agents:
             if not agent.has_transitioned_this_timestep():
-                if agent.is_infected():
+                if agent.is_susceptible():
                     SI_transition_rates.append(self.handle_infection(agent))
+                if agent.is_infected():
+                    self.i_r_transition(agent)
         beta = sum(SI_transition_rates)
 
         homes = [agent for agent in self.agents if agent.mode == 'home']
@@ -291,19 +304,21 @@ class City:
         agent.timesteps_infected += 1
         adjacency_list = self.network[agent]
         si_transition_rate = 0
-        msg = 'infected_agent {} went to {} and infected {}'
+        msg = 'susceptible {} went to {} and became infected'
         if len(adjacency_list) > 0:
-            susceptible_neighbors = [neighbor for neighbor in adjacency_list if neighbor.is_susceptible()]
-            if len(susceptible_neighbors) > 0:
-                si_transition_rate = len(susceptible_neighbors) / self.N
-                for neighbor in susceptible_neighbors:
-                    if random.random() < si_transition_rate:
-                        print(msg.format(agent.name, agent.mode, neighbor.name))
-                        self.agents[neighbor.number].transition_state('infected')
-                        self.num_susceptible -= 1
-                        self.num_infected += 1
-                        self.agents[neighbor.number].transitioned_this_timestep = True
+            infected_neighbors = [neighbor for neighbor in adjacency_list if neighbor.is_infected()]
+            if len(infected_neighbors) > 0:
+                si_transition_rate = len(infected_neighbors) / len(adjacency_list)
+                if random.random() < si_transition_rate:
+                    print(msg.format(agent.name, agent.mode))
+                    self.agents[agent.number].transition_state('infected')
+                    self.num_susceptible -= 1
+                    self.num_infected += 1
+                    self.agents[agent.number].transitioned_this_timestep = True
 
+        return si_transition_rate
+
+    def i_r_transition(self, agent):
         if agent.timesteps_infected >= (1 / self.gamma):
             print('Transitioning {} to removed'.format(agent.name))
             agent.transition_state('removed')
@@ -311,5 +326,3 @@ class City:
             self.num_removed += 1
             agent.transitioned_this_timestep = True
             agent.timesteps_infected = 0
-
-        return si_transition_rate
