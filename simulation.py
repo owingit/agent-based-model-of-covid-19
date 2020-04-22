@@ -77,7 +77,7 @@ def construct_cities(edge_proximity, gamma_denom, timesteps):
     mpolicy_b = ['preferential_return', location_policies_dict_b]
     intent = 'lockdown'
     location_policies_dict_c = construct_location_policies_dict(intent, timesteps)
-    mpolicy_c = ['preferential_return_essential', location_policies_dict_c]
+    mpolicy_c = ['preferential_return', location_policies_dict_c]
 
     ws = [200, 200]
     hs = [200, 200]

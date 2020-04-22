@@ -291,14 +291,14 @@ class City:
         agent.timesteps_infected += 1
         adjacency_list = self.network[agent]
         si_transition_rate = 0
-        msg = 'infected_agent {} went to {} and infected {}'
+        msg = 'infected_agent {} went to {} and contacted {}'
         if len(adjacency_list) > 0:
             susceptible_neighbors = [neighbor for neighbor in adjacency_list if neighbor.is_susceptible()]
             if len(susceptible_neighbors) > 0:
-                print(msg.format(agent.name, agent.mode, len(susceptible_neighbors)))
                 si_transition_rate = len(susceptible_neighbors) / self.N
                 for neighbor in susceptible_neighbors:
                     if random.random() < si_transition_rate:
+                        print(msg.format(agent.name, agent.mode, neighbor.name))
                         self.agents[neighbor.number].transition_state('infected')
                         self.num_susceptible -= 1
                         self.num_infected += 1

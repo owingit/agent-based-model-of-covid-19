@@ -68,7 +68,7 @@ class Agent:
         if self.movement_policy[0] == '2d_random_walk':
             self.twod_random_walk()
 
-        if 'preferential_return' in self.movement_policy[0]:
+        if self.movement_policy[0] == 'preferential_return':
             self.preferential_return()
 
         self.recalculate_positions_based_on_edges(self.city)
@@ -101,9 +101,10 @@ class Agent:
         voronoi diagram around the poissson point process.
         '''
         msg = '{} probability has not been set!'
-        assert self.shop_probability, msg.format('market')
-        assert self.stay_at_home_probability, msg.format('home')
-        assert self.work_probability, msg.format('work')
+        assert self.shop_probability is not None, msg.format('market')
+        assert self.stay_at_home_probability is not None, msg.format('home')
+        assert self.work_probability is not None, msg.format('work')
+        assert self.transit_probability is not None, msg.format('transit')
         rand_val = random.random()
         if rand_val < self.stay_at_home_probability:
             mode = 'home'
@@ -210,7 +211,6 @@ class Agent:
                         'work': None,
                         'home': None
                         }
-
         for id, poly_tuples in enumerated_regions.items():
             assigned = False
             for region, polygon in poly_tuples:
@@ -227,22 +227,13 @@ class Agent:
         return used_regions
 
     def set_policy(self, health_policy, movement_policy, i):
-        critical_value = self.city.N / 5
         self.health_policy = health_policy
         self.movement_policy = movement_policy
         if self.movement_policy[1]:
-            probs_dict = self.movement_policy[1][i]
-            if i % critical_value == 0 and 'essential' in movement_policy[0]:
-                probs_dict = {'market': 0.00,
-                              'transit': 0.30,
-                              'work': 0.40,
-                              'home': 0.30
-                              }
-
-            self.shop_probability = probs_dict['market']
-            self.stay_at_home_probability = probs_dict['home']
-            self.transit_probability = probs_dict['transit']
-            self.work_probability = probs_dict['work']
+            self.shop_probability = self.movement_policy[1][i]['market']
+            self.stay_at_home_probability = self.movement_policy[1][i]['home']
+            self.transit_probability = self.movement_policy[1][i]['transit']
+            self.work_probability = self.movement_policy[1][i]['work']
 
     def is_infected(self):
         return self.infected
