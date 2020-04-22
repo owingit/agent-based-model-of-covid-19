@@ -11,19 +11,18 @@ from agent import *
 
 
 class City:
-    def __init__(self, name, x, y, n, beta, gamma, hpolicy, mpolicy):
+    def __init__(self, name, x, y, n, edge_proximity, gamma, hpolicy, mpolicy):
         '''Defines an agent, which represents a node in the city-level infection network.
 
         :param str name: name of the city
         :param int x: width
         :param int y: height
         :param int n: num agents in city
-        :param float beta: experimental beta value
+        :param float edge_proximity: edge proximity (proxy for infectivity)
         :param float gamma: experimental gamma denominator
         :param str hpolicy: health policy name
         :param list[str, dict] mpolicy: movement policy name
         '''
-        self.beta = beta  # beta naught for covid 19
         self.gamma = gamma  # gamma naught for covid 19
         self.num_infected = 0
         self.num_removed = 0
@@ -42,9 +41,6 @@ class City:
 
         self.past_networks = []
         self.network = None
-        self.edge_proximity = 2.0  # proxy for infectivity
-        self.agents = [Agent(i, self, self.beta, self.gamma) for i in range(0, self.N)]
-
         self.central_locations = self.poisson_point_process(
             intensity=(self.N / self.area) / 50)  # one grocery store for every 50 agents
         self.transit_hubs = self.poisson_point_process(
@@ -58,6 +54,15 @@ class City:
             transits=self.transit_hubs,
             workspaces=self.workspaces,
             homes=self.homes)
+
+        self.edge_proximity = edge_proximity  # proxy for infectivity
+        try:
+            self.probabilities_dict = mpolicy[1]
+            self.agents = [Agent(i, self, probs=self.probabilities_dict) for i in
+                           range(0, self.N)]
+        except IndexError:
+            self.agents = [Agent(i, self) for i in
+                           range(0, self.N)]
 
         for agent in self.agents:
             agent.set_and_verify_locations(
@@ -179,10 +184,12 @@ class City:
         self.past_networks.append(self.network)
 
         # infect O(n * |neighbor_set|)
+        SI_transition_rates = []
         for agent in self.agents:
             if not agent.has_transitioned_this_timestep():
                 if agent.is_infected():
-                    self.handle_infection(agent)
+                    SI_transition_rates.append(self.handle_infection(agent))
+        beta = sum(SI_transition_rates)
 
         homes = [agent for agent in self.agents if agent.mode == 'home']
         len_homes = len(homes)
@@ -195,6 +202,7 @@ class City:
         print('{} stayed home, {} went to work, {} went on the bus, {} went to the market'.format(
             len_homes, len_works, len_transits, len_markets
         ))
+        return beta
 
     def find_edge_candidates(self, i):
         """See if a node is close enough to another node to count as an edge.
@@ -240,22 +248,22 @@ class City:
 
         1. Check for susceptible neighbors.
         2. For each susceptible neighbor:
-           transmit infection with probability beta / k<ex>
+           transmit infection
         3. Recover if t_infected > 1/gamma
         """
         agent.timesteps_infected += 1
         adjacency_list = self.network[agent]
+        si_transition_rate = 0
         if len(adjacency_list) > 0:
             susceptible_neighbors = [neighbor for neighbor in adjacency_list if neighbor.is_susceptible()]
             if len(susceptible_neighbors) > 0:
-                S_I_transition_rate = self.beta / len(susceptible_neighbors)
+                si_transition_rate = len(susceptible_neighbors) / self.N
                 for neighbor in susceptible_neighbors:
-                    if random.random() <= S_I_transition_rate:
-                        print('Transitioning {} to infected'.format(neighbor.name))
-                        self.agents[neighbor.number].transition_state('infected')
-                        self.num_susceptible -= 1
-                        self.num_infected += 1
-                        self.agents[neighbor.number].transitioned_this_timestep = True
+                    print('Transitioning {} to infected'.format(neighbor.name))
+                    self.agents[neighbor.number].transition_state('infected')
+                    self.num_susceptible -= 1
+                    self.num_infected += 1
+                    self.agents[neighbor.number].transitioned_this_timestep = True
 
         if agent.timesteps_infected >= (1 / self.gamma):
             print('Transitioning {} to removed'.format(agent.name))
@@ -265,6 +273,4 @@ class City:
             agent.transitioned_this_timestep = True
             agent.timesteps_infected = 0
 
-
-
-
+        return si_transition_rate

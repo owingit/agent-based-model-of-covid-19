@@ -10,19 +10,14 @@ from shapely.geometry.polygon import Polygon
 
 
 class Agent:
-    def __init__(self, i, City, beta, gamma, **kwargs):
+    def __init__(self, i, City, **kwargs):
         '''Defines an agent, which represents a node in the city-level infection network.
 
         :param int i: num
         :param city.City City: City object encompassing the agent
-        :param float beta: experimental beta value
-        :param float gamma: experimental gamma denominator
         :param **kwargs
         '''
         # attributes
-        self.infection_beta = beta
-        self.infection_gamma = gamma
-
         self.susceptible = True
         self.infected = False
         self.removed = False
