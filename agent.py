@@ -10,7 +10,7 @@ from shapely.geometry.polygon import Polygon
 
 
 class Agent:
-    def __init__(self, i, City, **kwargs):
+    def __init__(self, i, City):
         '''Defines an agent, which represents a node in the city-level infection network.
 
         :param int i: num
