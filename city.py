@@ -2,7 +2,8 @@ import math
 import random
 import numpy as np
 import itertools
-
+import matplotlib.pyplot as plt
+import seaborn as sns
 import networkx as nx
 
 
@@ -134,6 +135,28 @@ class City:
             agent.transitioned_this_timestep = True
             agent.timesteps_infected = 0
 
-
+    def plot_scatter(self,j):
+        ''' For visualising the spread of disease as it moves through the city'''
+        #print(len(self.agents))          
+        i=0;
+        col=[]
+        for agent in self.agents:
+            if agent.state == 'susceptible':
+                col.append("blue")
+            if agent.state == 'infected':
+                col.append("red")
+            if agent.state == 'removed':
+                col.append("green")
+     
+        sns.set_style("darkgrid")
+        plt.ioff()
+        fig = plt.figure()
+        for agent in self.agents:
+            plt.scatter(agent.positionx,agent.positiony,c=col[i],
+                       alpha=0.5 )
+            i=i+1
+        file="plots_1/{}{}.png".format(self.name,j)
+        plt.savefig(file,dpi=300)
+        plt.close(fig)
 
 
