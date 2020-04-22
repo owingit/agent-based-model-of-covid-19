@@ -301,7 +301,6 @@ class City:
            transmit infection
         3. Recover if t_infected > 1/gamma
         """
-        agent.timesteps_infected += 1
         adjacency_list = self.network[agent]
         si_transition_rate = 0
         msg = 'susceptible {} went to {} and became infected'
@@ -319,6 +318,7 @@ class City:
         return si_transition_rate
 
     def i_r_transition(self, agent):
+        agent.timesteps_infected += 1
         if agent.timesteps_infected >= (1 / self.gamma):
             print('Transitioning {} to removed'.format(agent.name))
             agent.transition_state('removed')
