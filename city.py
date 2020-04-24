@@ -4,6 +4,8 @@ import collections
 import policy
 import numpy as np
 import itertools
+import scipy
+from scipy import spatial
 
 import networkx as nx
 
@@ -12,7 +14,7 @@ from agent import *
 
 
 class City:
-    def __init__(self, name, x, y, n, edge_proximity, gamma, hpolicy, mpolicy):
+    def __init__(self, name, x, y, n, edge_proximity, gamma, hpolicy, mpolicy, frequencies_dict):
         '''Defines an agent, which represents a node in the city-level infection network.
 
         :param str name: name of the city
@@ -23,6 +25,7 @@ class City:
         :param float gamma: experimental gamma denominator
         :param str hpolicy: health policy name
         :param list[str, dict] mpolicy: movement policy name
+        :param dict frequencies_dict: dictionary of special point frequencies
         '''
         self.POLICIES = None
         self.gamma = gamma  # gamma naught for covid 19
@@ -32,23 +35,22 @@ class City:
         self.N = n
 
         self.name = name
-        self.hpolicy = hpolicy
-        self.mpolicy = mpolicy
 
         self.width = x
         self.height = y
         self.datafile = '{}x{}x{}parameter_sweep_data.txt'.format(self.width, self.height, self.N)
 
         self.area = self.width * self.height
-        self.agents_per_market = 50
-        self.agents_per_transit = 100
-        self.agents_per_work = 15
-        self.agents_per_home = 3
+        self.agents_per_market = frequencies_dict['market']
+        self.agents_per_transit = frequencies_dict['transit']
+        self.agents_per_work = frequencies_dict['work']
+        self.agents_per_home = frequencies_dict['home']
 
         self.past_networks = []
         self.network = None
         self.edge_proximity = edge_proximity  # proxy for infectivity
         self.agents = [Agent(i, self) for i in range(0, self.N)]
+        self.policy = policy.Policy(hpolicy, mpolicy)
 
         self.setup_agent_central_locations()
         #
@@ -60,7 +62,6 @@ class City:
         #                                                                               agent.personal_central_locations['transit']
         #                                                                               ))
         self.agent_dict = {v.number: v for v in self.agents}
-        self.policy = policy.Policy(self.name, self.agents, self.hpolicy, self.mpolicy)
 
     def setup_agent_central_locations(self):
         """Function to initialize central locations for each agent.
@@ -110,24 +111,28 @@ class City:
         """If a region has too many points within it, exclude it so that central locations are better distributed."""
 
         if used_regions['market'].count(agent_used_regions['market']) > self.agents_per_market:
-            _region_to_remove = [tup for tup in market_regions if tup[0] == agent_used_regions.get('market')]
-            if _region_to_remove:
-                market_regions.remove(_region_to_remove[0])
+            if market_regions:
+                _region_to_remove = [tup for tup in market_regions if tup[0] == agent_used_regions.get('market')]
+                if _region_to_remove:
+                    market_regions.remove(_region_to_remove[0])
 
         if used_regions['transit'].count(agent_used_regions['transit']) > self.agents_per_transit:
-            _region_to_remove = [tup for tup in transit_regions if tup[0] == agent_used_regions.get('transit')]
-            if _region_to_remove:
-                transit_regions.remove(_region_to_remove[0])
+            if transit_regions:
+                _region_to_remove = [tup for tup in transit_regions if tup[0] == agent_used_regions.get('transit')]
+                if _region_to_remove:
+                    transit_regions.remove(_region_to_remove[0])
 
         if used_regions['work'].count(agent_used_regions['work']) > self.agents_per_work:
-            _region_to_remove = [tup for tup in work_regions if tup[0] == agent_used_regions.get('work')]
-            if _region_to_remove:
-                work_regions.remove(_region_to_remove[0])
+            if work_regions:
+                _region_to_remove = [tup for tup in work_regions if tup[0] == agent_used_regions.get('work')]
+                if _region_to_remove:
+                    work_regions.remove(_region_to_remove[0])
 
         if used_regions['home'].count(agent_used_regions['home']) > self.agents_per_home:
-            _region_to_remove = [tup for tup in home_regions if tup[0] == agent_used_regions.get('home')]
-            if _region_to_remove:
-                home_regions.remove(_region_to_remove[0])
+            if home_regions:
+                _region_to_remove = [tup for tup in home_regions if tup[0] == agent_used_regions.get('home')]
+                if _region_to_remove:
+                    home_regions.remove(_region_to_remove[0])
 
     def setup_voronoi_diagrams(self, markets, transits, workspaces, homes):
         """
@@ -144,23 +149,27 @@ class City:
         points_list = [markets, transits, workspaces, homes]
         polygons_dict = {mode: [] for mode in modes}
         for index, location_group in enumerate(points_list):
-            vor = Voronoi(location_group)
-            vertices = vor.vertices
-            regions = vor.regions
-            regions.remove([])
-            polygons = []
-            for i, reg in enumerate(regions):
-                if len(reg) > 3:
-                    polygon_vertices = vertices[reg]
-                    point_pairs = []
-                    for pair in polygon_vertices:
-                        point_pair = (pair[0], pair[1])
-                        point_pairs.append(point_pair)
-                    polygon = Polygon(point_pairs)
-                    if i > len(location_group):
-                        i = i % len(location_group)
-                    polygons.append((i, polygon))
-            polygons_dict[modes[index]].extend(polygons)
+            try:
+                vor = Voronoi(location_group)
+                vertices = vor.vertices
+                regions = vor.regions
+                regions.remove([])
+                polygons = []
+                for i, reg in enumerate(regions):
+                    if len(reg) > 3:
+                        polygon_vertices = vertices[reg]
+                        point_pairs = []
+                        for pair in polygon_vertices:
+                            point_pair = (pair[0], pair[1])
+                            point_pairs.append(point_pair)
+                        polygon = Polygon(point_pairs)
+                        if i > len(location_group):
+                            i = i % len(location_group)
+                        polygons.append((i, polygon))
+                polygons_dict[modes[index]].extend(polygons)
+            except spatial.qhull.QhullError:
+                print('Catching Qhull error, defaulting to random network wiring')
+                return None, None, None, None
         return polygons_dict['market'], polygons_dict['transit'], polygons_dict['work'], polygons_dict['home']
 
     def print_width(self):
@@ -227,14 +236,15 @@ class City:
         # move nodes
         # generate nodes O(n)
         for agent in self.agents:
-            if 'essential' in self.mpolicy[0]:
+            if 'essential' in self.policy.movement_policy_name:
                 if agent.number % 50 == 0:  # 50 essential workers
-                    agent.set_policy(health_policy=self.hpolicy, movement_policy=self.mpolicy, i=i)
+                    agent.set_policy(self.policy, i=i)
                 else:
-                    agent.set_policy(health_policy=self.hpolicy, movement_policy=('preferential_return_stay_at_home',
-                                                                                  self.POLICIES['stay_at_home']), i=i)
+                    temp_policy = policy.Policy(self.policy.health_policy, ('preferential_return_stay_at_home',
+                                                self.POLICIES['stay_at_home']))
+                    agent.set_policy(temp_policy, i=i)
             else:
-                agent.set_policy(health_policy=self.hpolicy, movement_policy=self.mpolicy, i=i)
+                agent.set_policy(self.policy, i=i)
             if i > 0:
                 agent.move()
             self.network.add_node(agent)
@@ -249,14 +259,14 @@ class City:
         self.past_networks.append(self.network)
 
         # infect O(n * |neighbor_set|)
-        SI_transition_rates = []
+        si_transition_rates = []
         for agent in self.agents:
             if not agent.has_transitioned_this_timestep():
                 if agent.is_susceptible():
-                    SI_transition_rates.append(self.handle_infection(agent))
+                    si_transition_rates.append(self.handle_infection(agent))
                 if agent.is_infected():
                     self.i_r_transition(agent)
-        beta = sum(SI_transition_rates)
+        beta = sum(si_transition_rates)
 
         homes = [agent for agent in self.agents if agent.mode == 'home']
         len_homes = len(homes)
@@ -294,15 +304,15 @@ class City:
         return potential_edges
 
     def handle_infection(self, agent):
-        """What to do when an agent is infected.
+        """What to do when an agent is susceptible.
 
-        1. Check for susceptible neighbors.
-        2. For each susceptible neighbor:
-           transmit infection
-        3. Recover if t_infected > 1/gamma
+        1. Check for infected neighbors.
+        2. For each infected neighbor:
+           transmit infection to self with si_transition_rate = contact rate of infection at a timestep
         """
         adjacency_list = self.network[agent]
         si_transition_rate = 0
+        infected_neighbors = None
         msg = 'susceptible {} went to {} and became infected'
         if len(adjacency_list) > 0:
             infected_neighbors = [neighbor for neighbor in adjacency_list if neighbor.is_infected()]
@@ -310,14 +320,17 @@ class City:
                 si_transition_rate = len(infected_neighbors) / len(adjacency_list)
                 if random.random() < si_transition_rate:
                     print(msg.format(agent.name, agent.mode))
-                    self.agents[agent.number].transition_state('infected')
+                    agent.transition_state('infected')
                     self.num_susceptible -= 1
                     self.num_infected += 1
-                    self.agents[agent.number].transitioned_this_timestep = True
-
+                    agent.transitioned_this_timestep = True
+        infected_neighbor_count = len(infected_neighbors) if infected_neighbors else 0
+        #print('{} had {} infected neighbors and {} neighbors, corresponding with {} infection probability'.format(
+            # agent.name, infected_neighbor_count, len(adjacency_list), si_transition_rate))
         return si_transition_rate
 
     def i_r_transition(self, agent):
+        """Recover if t_infected > 1/gamma."""
         agent.timesteps_infected += 1
         if agent.timesteps_infected >= (1 / self.gamma):
             print('Transitioning {} to removed'.format(agent.name))

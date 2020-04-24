@@ -23,8 +23,7 @@ class Agent:
 
         self.timesteps_infected = 0
         self.city = City
-        self.health_policy = None
-        self.movement_policy = None
+        self.policy = None
         self.health_policy_active = False
 
         self.positionx = None
@@ -63,12 +62,12 @@ class Agent:
 
         Informed by self.health_policy and self.movement_policy.
         '''
-        if self.health_policy == 'social_distancing' and self.health_policy_active:
+        if self.policy.health_policy == 'social_distancing' and self.health_policy_active:
             self.recalculate_vector_based_on_policy()
-        if self.movement_policy[0] == '2d_random_walk':
+        if self.policy.movement_policy_name == '2d_random_walk':
             self.twod_random_walk()
 
-        if 'preferential_return' in self.movement_policy[0]:
+        if 'preferential_return' in self.policy.movement_policy_name:
             self.preferential_return()
 
         self.recalculate_positions_based_on_edges(self.city)
@@ -119,8 +118,8 @@ class Agent:
         assert self.mode
         self.prior_x_position = self.positionx
         self.prior_y_position = self.positiony
-        self.positionx = list(self.personal_central_locations[self.mode])[0]
-        self.positiony = list(self.personal_central_locations[self.mode])[1]
+        self.positionx = list(self.personal_central_locations[self.mode])[0] + np.random.normal(-0.5, 0.5)
+        self.positiony = list(self.personal_central_locations[self.mode])[1] + np.random.normal(-0.5, 0.5)
 
     def recalculate_positions_based_on_edges(self, city):
         '''Adjust the positions of an agent based on the city's boundaries.
@@ -192,48 +191,67 @@ class Agent:
         :param tuple transit_regions: list of points denoting 'transit_hub' central locations and their regional boundaries
         :param tuple workspace_regions: list of points denoting 'work' central locations and their regional boundaries
         :param tuple home_regions: list of points denoting 'home' central locations and their regional boundaries
+
+        :rtype dict
         """
-        point = Point(self.positionx, self.positiony)
-
-        enumerated_regions = {'market': market_regions[0],
-                              'transit': transit_regions[0],
-                              'work': workspace_regions[0],
-                              'home': home_regions[0]
-                              }
-
         enumerated_points = {'market': market_regions[1],
                              'transit': transit_regions[1],
                              'work': workspace_regions[1],
                              'home': home_regions[1]}
-        # update the agent's personal central location for each mode
-        used_regions = {'market': None,
-                        'transit': None,
-                        'work': None,
-                        'home': None
-                        }
-        for id, poly_tuples in enumerated_regions.items():
-            assigned = False
-            for region, polygon in poly_tuples:
-                if polygon.contains(point) and not assigned:
-                    self.personal_central_locations[id] = frozenset([enumerated_points[id][region][0], enumerated_points[id][region][1]])  # strip dupes
-                    assigned = True
-                    used_regions[id] = region
+        point = Point(self.positionx, self.positiony)
 
-            if not assigned:
-                random_index = random.randint(0, len(poly_tuples)) % len(enumerated_points[id])
-                self.personal_central_locations[id] = frozenset([enumerated_points[id][random_index][0], enumerated_points[id][random_index][1]])
-                used_regions[id] = random_index
+        if not market_regions[0]:
+            used_regions = {'market': None,
+                            'transit': None,
+                            'work': None,
+                            'home': None
+                            }
+            #  locations are determined by random network wiring
+            for key in enumerated_points.keys():
+                points_list = enumerated_points[key]
+                random_index = random.randint(0, len(points_list) - 1)
+                self.personal_central_locations[key] = frozenset([points_list[random_index][0],
+                                                                  points_list[random_index][1]])
+                used_regions[key] = random_index
+        else:
+            enumerated_regions = {'market': market_regions[0],
+                                  'transit': transit_regions[0],
+                                  'work': workspace_regions[0],
+                                  'home': home_regions[0]
+                                  }
+
+            # update the agent's personal central location for each mode
+            used_regions = {'market': None,
+                            'transit': None,
+                            'work': None,
+                            'home': None
+                            }
+            for location_type, poly_tuples in enumerated_regions.items():
+                assigned = False
+                for region, polygon in poly_tuples:
+                    if polygon.contains(point) and not assigned:
+                        self.personal_central_locations[location_type] = frozenset(
+                            [enumerated_points[location_type][region][0],
+                             enumerated_points[location_type][region][1]])  # strip dupes
+                        assigned = True
+                        used_regions[location_type] = region
+
+                if not assigned:
+                    random_index = random.randint(0, len(poly_tuples)) % len(enumerated_points[location_type])
+                    self.personal_central_locations[location_type] = frozenset(
+                        [enumerated_points[location_type][random_index][0],
+                         enumerated_points[location_type][random_index][1]])
+                    used_regions[location_type] = random_index
 
         return used_regions
 
-    def set_policy(self, health_policy, movement_policy, i):
-        self.health_policy = health_policy
-        self.movement_policy = movement_policy
-        if self.movement_policy[1]:
-            self.shop_probability = self.movement_policy[1][i]['market']
-            self.stay_at_home_probability = self.movement_policy[1][i]['home']
-            self.transit_probability = self.movement_policy[1][i]['transit']
-            self.work_probability = self.movement_policy[1][i]['work']
+    def set_policy(self, policy, i):
+        self.policy = policy
+        if self.policy.movement_probabilities:
+            self.shop_probability = self.policy.get_probability(i, 'market')
+            self.stay_at_home_probability = self.policy.get_probability(i, 'home')
+            self.transit_probability = self.policy.get_probability(i, 'transit')
+            self.work_probability = self.policy.get_probability(i, 'work')
 
     def is_infected(self):
         return self.infected

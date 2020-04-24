@@ -15,11 +15,12 @@ LOCATION_POLICIES = {
     'lax': {'home': 0.3, 'work': 0.3, 'market': 0.1, 'transit': 0.3},
     'tight': {'home': 0.8, 'work': 0.05, 'market': 0.1, 'transit': 0.05},
     'even': {'home': 0.25, 'work': 0.25, 'market': 0.25, 'transit': 0.25},
-    'stay_at_home': {'home': 0.9, 'work': 0.00, 'market': 0.075, 'transit': 0.025},
+    'stay_at_home': {'home': 0.9, 'work': 0.00, 'market': 0.05, 'transit': 0.05},
     'essential_worker': {'home': 0.3, 'work': 0.5, 'market': 0.05, 'transit': 0.15},
-    'lockdown': {'home': 0.99, 'work': 0.00, 'market': 0.01, 'transit': 0.00},
+    'lockdown': {'home': 0.95, 'work': 0.00, 'market': 0.04, 'transit': 0.01},
 }
 POLICIES = dict()
+
 
 def main():
     timesteps = int(sys.argv[1]) if len(sys.argv) > 1 else 200
@@ -28,7 +29,7 @@ def main():
             for gamma in GAMMAS:
                 setup_and_run(timesteps, edge_proximity, gamma)
     else:
-        setup_and_run(timesteps, 0.001, COVID_Gamma)
+        setup_and_run(timesteps, 0.2, COVID_Gamma)
 
 
 def setup_and_run(timesteps, edge_proximity, gamma):
@@ -73,7 +74,6 @@ def setup_and_run(timesteps, edge_proximity, gamma):
         #cg.write_data()
 
 
-
 def construct_cities(edge_proximity, gamma_denom, timesteps):
     """Initialize cities with different policies, beta, gamma values. Right now they're all the same size/population
 
@@ -90,27 +90,29 @@ def construct_cities(edge_proximity, gamma_denom, timesteps):
     intent = 'stay_at_home'
     location_policies_dict_b = construct_location_policies_dict(intent, timesteps)
     mpolicy_b = ['preferential_return_stay_at_home', location_policies_dict_b]
-    intent = 'lax'
+    intent = 'lockdown'
     location_policies_dict_c = construct_location_policies_dict(intent, timesteps)
-    mpolicy_c = ['preferential_return_lax', location_policies_dict_c]
-    intent = 'essential_worker'
+    mpolicy_c = ['preferential_return_lockdown', location_policies_dict_c]
+    intent = 'lax'
     location_policies_dict_d = construct_location_policies_dict(intent, timesteps)
-    mpolicy_d = ['preferential_return_essential', location_policies_dict_d]
+    mpolicy_d = ['preferential_return', location_policies_dict_d]
+    frequencies_dict_a = {'market': 50, 'transit': 200, 'work': 20, 'home': 2}
 
-    ws = [200, 200]
-    hs = [200, 200]
-    ns = [1500, 3000]
+    ws = [200, 300, 50]
+    hs = [200, 300, 50]
+    ns = [1500, 5000, 600]
     hpolicy_a = 'social_distancing'
     hpolicy_b = 'normal'
-    cities = [City(name='Boulder', x=ws[0], y=hs[0], n=ns[0], edge_proximity=edge_proximity,
-                   gamma=gamma, hpolicy=hpolicy_a, mpolicy=mpolicy_a),
-              City(name='Denver', x=ws[1], y=hs[1], n=ns[0], edge_proximity=edge_proximity,
-                   gamma=gamma, hpolicy=hpolicy_b, mpolicy=mpolicy_b),
-              City(name='Mixopolis', x=ws[1], y=hs[1], n=ns[0], edge_proximity=edge_proximity,
-                   gamma=gamma, hpolicy=hpolicy_b, mpolicy=mpolicy_c),
-              City(name='EssentialWorkerOpolis', x=ws[1], y=hs[1], n=ns[0], edge_proximity=edge_proximity,
-                   gamma=gamma, hpolicy=hpolicy_b, mpolicy=mpolicy_d)]
-              # City('Fort Collins', ws[0], hs[0], ns[0], beta, gamma, hpolicy_a, mpolicy_b),
+    cities = [#City(name='Boulder', x=ws[1], y=hs[1], n=ns[1], edge_proximity=edge_proximity,
+    #                gamma=gamma, hpolicy=hpolicy_a, mpolicy=mpolicy_a),
+    #           City(name='Denver', x=ws[1], y=hs[1], n=ns[1], edge_proximity=edge_proximity,
+    #                gamma=gamma, hpolicy=hpolicy_b, mpolicy=mpolicy_b),
+    #           City(name='Quarantinopolis', x=ws[1], y=hs[1], n=ns[1], edge_proximity=edge_proximity,
+    #                gamma=gamma, hpolicy=hpolicy_b, mpolicy=mpolicy_c),
+    #           City(name='EssentialWorkerOpolis', x=ws[1], y=hs[1], n=ns[1], edge_proximity=edge_proximity,
+    #                gamma=gamma, hpolicy=hpolicy_b, mpolicy=mpolicy_d),
+              City('Fort Collins', ws[2], hs[2], ns[2], edge_proximity, gamma, hpolicy_a, mpolicy_b,
+                   frequencies_dict_a),]
               # City('Colorado Springs', ws[1], hs[1], ns[0], beta, gamma, hpolicy_b, mpolicy_a),
               # City('DenserBoulder', ws[0], hs[0], ns[1], beta, gamma, hpolicy_a, mpolicy_a),
               # City('DenserDenver', ws[1], hs[1], ns[1], beta, gamma, hpolicy_b, mpolicy_b),
@@ -125,8 +127,8 @@ def construct_location_policies_dict(intent, timesteps):
     """Make policy different at each timestep."""
     location_policies_dict = {}
     for i in range(0, timesteps):
-        if i < 3:
-            location_policies_dict[i] = LOCATION_POLICIES['lax']
+        if i < 10:
+             location_policies_dict[i] = LOCATION_POLICIES['lax']
         else:
             location_policies_dict[i] = LOCATION_POLICIES[intent]
     POLICIES[intent] = location_policies_dict
