@@ -1,43 +1,186 @@
 import math
 import random
+import collections
+import policy
 import numpy as np
 import itertools
+import scipy
+from scipy import spatial
 import matplotlib.pyplot as plt
-import seaborn as sns
 import networkx as nx
-
+import seaborn as sns
 
 from agent import *
 
 
 class City:
-    def __init__(self, name, x, y, n, beta, gamma):
-        self.beta = beta  # beta naught for covid 19
+    def __init__(self, name, x, y, n, edge_proximity, gamma, hpolicy, mpolicy, frequencies_dict):
+        '''Defines an agent, which represents a node in the city-level infection network.
+
+        :param str name: name of the city
+        :param int x: width
+        :param int y: height
+        :param int n: num agents in city
+        :param float edge_proximity: edge proximity (proxy for infectivity)
+        :param float gamma: experimental gamma denominator
+        :param str hpolicy: health policy name
+        :param list[str, dict] mpolicy: movement policy name
+        :param dict frequencies_dict: dictionary of special point frequencies
+        '''
+        self.POLICIES = None
         self.gamma = gamma  # gamma naught for covid 19
         self.num_infected = 0
         self.num_removed = 0
         self.num_susceptible = 0
+        self.num_quarantined = 0
         self.N = n
 
         self.name = name
-        self.policy = None
 
-        self.poisson_intensity = 0.10
         self.width = x
         self.height = y
         self.datafile = '{}x{}x{}parameter_sweep_data.txt'.format(self.width, self.height, self.N)
 
         self.area = self.width * self.height
-        self.central_locations = self.poisson_point_process()
+        self.agents_per_market = frequencies_dict['market']
+        self.agents_per_transit = frequencies_dict['transit']
+        self.agents_per_work = frequencies_dict['work']
+        self.agents_per_home = frequencies_dict['home']
 
         self.past_networks = []
         self.network = None
-        self.edge_proximity = 3.0
+        self.edge_proximity = edge_proximity  # proxy for infectivity
+        self.agents = [Agent(i, self) for i in range(0, self.N)]
+        self.policy = policy.Policy(hpolicy, mpolicy)
+        
+        
+        
+        self.quarantine_center_location=None
+        self.quarantine_threshold = 4
+        self.quarantine_rate = 0
+        
+        
+        self.setup_agent_central_locations()
+        #
+        # for agent in self.agents:
+        #     print('{} has locations work:{}\nhome:{}\nmarket:{}\ntransit:{}\n'.format(agent.name,
+        #                                                                               agent.personal_central_locations['work'],
+        #                                                                               agent.personal_central_locations['home'],
+        #                                                                               agent.personal_central_locations['market'],
+        #                                                                               agent.personal_central_locations['transit']
+        #                                                                               ))
+        self.agent_dict = {v.number: v for v in self.agents}
 
-        self.agents = [Agent(i, self, self.beta, self.gamma) for i in range(0, self.N)]
+    def setup_agent_central_locations(self):
+        """Function to initialize central locations for each agent.
 
-    def set_policy(self, policy):
-        self.policy = policy
+        Based on the voronoi diagrams around points chosen by a Poisson point process
+        """
+        central_locations = self.poisson_point_process(
+            intensity=(self.N / self.area) / self.agents_per_market)  # one grocery store for every 50 agents
+        transit_hubs = self.poisson_point_process(
+            intensity=(self.N / self.area) / self.agents_per_transit)  # one public transit for every 100 agents
+        workspaces = self.poisson_point_process(
+            intensity=(self.N / self.area) / self.agents_per_work)  # one workplace for every 15 agents
+        homes = self.poisson_point_process(intensity=(self.N / self.area) / self.agents_per_home)  #  one home per every 3 agents
+        #print(len(set(homes)), len(set(central_locations)), len(set(transit_hubs)), len(set(workspaces)))
+
+        market_regions, transit_regions, work_regions, home_regions = self.setup_voronoi_diagrams(
+            markets=central_locations,
+            transits=transit_hubs,
+            workspaces=workspaces,
+            homes=homes)
+        #print(len(home_regions), len(market_regions), len(transit_regions), len(work_regions))
+
+        used_regions = {'market': [],
+                        'transit': [],
+                        'work': [],
+                        'home': []
+                        }
+        for agent in self.agents:
+            agent_used_regions = agent.set_and_verify_locations(
+                (market_regions, central_locations),
+                (transit_regions, transit_hubs),
+                (work_regions, workspaces),
+                (home_regions, homes)
+            )
+
+            used_regions['market'].append(agent_used_regions['market'])
+            used_regions['transit'].append(agent_used_regions['transit'])
+            used_regions['work'].append(agent_used_regions['work'])
+            used_regions['home'].append(agent_used_regions['home'])
+
+            self.remove_overutilized_regions(agent_used_regions, used_regions,
+                                             market_regions, transit_regions,
+                                             work_regions, home_regions)
+        self.define_quarantine_location()
+
+    def remove_overutilized_regions(self, agent_used_regions, used_regions, market_regions,
+                                    transit_regions, work_regions, home_regions):
+        """If a region has too many points within it, exclude it so that central locations are better distributed."""
+
+        if used_regions['market'].count(agent_used_regions['market']) > self.agents_per_market:
+            if market_regions:
+                _region_to_remove = [tup for tup in market_regions if tup[0] == agent_used_regions.get('market')]
+                if _region_to_remove:
+                    market_regions.remove(_region_to_remove[0])
+
+        if used_regions['transit'].count(agent_used_regions['transit']) > self.agents_per_transit:
+            if transit_regions:
+                _region_to_remove = [tup for tup in transit_regions if tup[0] == agent_used_regions.get('transit')]
+                if _region_to_remove:
+                    transit_regions.remove(_region_to_remove[0])
+
+        if used_regions['work'].count(agent_used_regions['work']) > self.agents_per_work:
+            if work_regions:
+                _region_to_remove = [tup for tup in work_regions if tup[0] == agent_used_regions.get('work')]
+                if _region_to_remove:
+                    work_regions.remove(_region_to_remove[0])
+
+        if used_regions['home'].count(agent_used_regions['home']) > self.agents_per_home:
+            if home_regions:
+                _region_to_remove = [tup for tup in home_regions if tup[0] == agent_used_regions.get('home')]
+                if _region_to_remove:
+                    home_regions.remove(_region_to_remove[0])
+
+    def setup_voronoi_diagrams(self, markets, transits, workspaces, homes):
+        """
+        Creates voronoi diagrams where the centers of each region are the points marked by the poisson point process.
+
+        :param markets: list of market points
+        :param transits: list of transit points
+        :param workspaces: list of work points
+        :param homes: list of home points
+        :return: tuple of voronoi regions
+        """
+        print('Setting up {} fixed locations'.format(self.name))
+        modes = ['market', 'transit', 'work', 'home']
+        points_list = [markets, transits, workspaces, homes]
+        polygons_dict = {mode: [] for mode in modes}
+        for index, location_group in enumerate(points_list):
+            try:
+                location_group=list(location_group) 
+                vor = Voronoi(location_group)
+                vertices = vor.vertices
+                regions = vor.regions
+                regions.remove([])
+                polygons = []
+                for i, reg in enumerate(regions):
+                    if len(reg) > 3:
+                        polygon_vertices = vertices[reg]
+                        point_pairs = []
+                        for pair in polygon_vertices:
+                            point_pair = (pair[0], pair[1])
+                            point_pairs.append(point_pair)
+                        polygon = Polygon(point_pairs)
+                        if i > len(location_group):
+                            i = i % len(location_group)
+                        polygons.append((i, polygon))
+                polygons_dict[modes[index]].extend(polygons)
+            except spatial.qhull.QhullError:
+                print('Catching Qhull error, defaulting to random network wiring')
+                return None, None, None, None
+        return polygons_dict['market'], polygons_dict['transit'], polygons_dict['work'], polygons_dict['home']
 
     def print_width(self):
         print('{} is {} units wide'.format(self.name, self.width))
@@ -61,24 +204,35 @@ class City:
             if agent.state == 'removed':
                 self.num_removed += 1
 
-    def poisson_point_process(self):
+    def poisson_point_process(self, intensity):
         """Generate central locations based on poisson intensity."""
-        num_points = np.random.poisson(self.poisson_intensity * self.area)  # Poisson number of points
+        num_points = np.random.poisson(intensity * self.area)  # Poisson number of points
         xs = self.width * np.random.uniform(0, 1, num_points)
         ys = self.height * np.random.uniform(0, 1, num_points)
         points = zip(xs, ys)
-        return points
+        return list(points)
 
     def get_states(self):
+        """Returns dict of states.
+
+        :rtype dict(any)
+        """
+        quarantined=[agent for agent in self.agents if agent.been_quarantined == True]
+        self.num_quarantined = len(quarantined)
         return {
             'susceptible': self.num_susceptible,
             'infected': self.num_infected,
             'removed': self.num_removed,
-            'total_IR': self.num_infected + self.num_removed
+            'total_IR': self.num_infected + self.num_removed,
+            'quarantined': self.num_quarantined
         }
 
     def print_states(self):
-        print('City: {}\nSusceptible: {}\nInfected: {}\nRemoved: {}\n'.format(self.name, self.num_susceptible, self.num_infected, self.num_removed))
+        print('City: {}\nSusceptible: {}\nInfected: {}\nRemoved: {} \nQuarantined : {}'.format(
+            self.name, self.num_susceptible, self.num_infected, self.num_removed,self.num_quarantined))
+
+    def view_all_policies(self, policies_dict):
+        self.POLICIES = policies_dict
 
     def timestep(self, i):
         '''One unit of time in a city.
@@ -88,45 +242,117 @@ class City:
             a) all agents in a city move, either within the city or to another city with a certain p
             b) a proximity network is formed
             c) infection spreads with probability gamma
+            d) agent trajectories are updated by their distance policy
         '''
-        # S_I_transition_rate = self.beta * self.num_infected / self.N
         self.network = nx.Graph()
+
+        # move nodes
         # generate nodes O(n)
         for agent in self.agents:
-            agent.move()
+            if 'essential' in self.policy.movement_policy_name:
+                if agent.number % 50 == 0:  # 50 essential workers
+                    agent.set_policy(self.policy, i=i)
+                else:
+                    temp_policy = policy.Policy(self.policy.health_policy, ('preferential_return_stay_at_home',
+                                                self.POLICIES['stay_at_home']))
+                    agent.set_policy(temp_policy, i=i)
+            else:
+                agent.set_policy(self.policy, i=i)
+            if i > 0:
+                if agent.been_quarantined==False:
+                    agent.move()
             self.network.add_node(agent)
 
         # generate edges O(n^2)
-        for pair in list(itertools.combinations(self.agents, r=2)):
-            d = np.sqrt(((pair[0].positionx - pair[1].positionx) ** 2) + ((pair[0].positiony - pair[1].positiony) ** 2))
-            if d <= self.edge_proximity:
-                self.network.add_edge(pair[0], pair[1])
+        potential_edges = self.find_edge_candidates()
+
+        # add O(|E)
+        for edge_number_tuple in potential_edges:
+            self.network.add_edge(self.agents[edge_number_tuple[0]], self.agents[edge_number_tuple[1]])
 
         self.past_networks.append(self.network)
 
         # infect O(n * |neighbor_set|)
+        si_transition_rates = []
         for agent in self.agents:
             if not agent.has_transitioned_this_timestep():
+                if agent.is_susceptible():
+                    si_transition_rates.append(self.handle_infection(agent))
                 if agent.is_infected():
-                    self.handle_infection(agent)
+                    agent.timesteps_infected += 1
+                    r=random.random()
+                    if agent.been_quarantined==False:
+                        if agent.timesteps_infected >= self.quarantine_threshold:
+                            if r<=self.quarantine_rate:
+                                self.quarantine(agent)
+                    self.i_r_transition(agent)
+        beta = sum(si_transition_rates)
+
+        homes = [agent for agent in self.agents if agent.mode == 'home']
+        len_homes = len(homes)
+        works = [agent for agent in self.agents if agent.mode == 'work']
+        len_works = len(works)
+        transits = [agent for agent in self.agents if agent.mode == 'transit']
+        len_transits = len(transits)
+        markets = [agent for agent in self.agents if agent.mode == 'market']
+        len_markets = len(markets)
+        quarantined=[agent for agent in self.agents if agent.been_quarantined == True]
+        len_quarantined = len(quarantined)
+        if i > 0:
+            print('{} stayed home, {} went to work, {} went on the bus, {} went to the market {} are in quarantine'.format(
+                len_homes, len_works, len_transits, len_markets,len_quarantined
+            ))
+        return beta
+
+    def find_edge_candidates(self):
+        """See if a node is close enough to another node to count as an edge.
+
+        Update the health policy and replace the node in self.agents with the modified node.
+
+        :param int i: timestep
+        """
+        potential_edges = []
+        for pair in list(itertools.combinations(self.agents, r=2)):
+            d = np.sqrt(
+                # euclidean distance
+                ((pair[0].positionx - pair[1].positionx) ** 2) + ((pair[0].positiony - pair[1].positiony) ** 2)
+            )
+            agent_a = pair[0]
+            agent_b = pair[1]
+            if d <= self.edge_proximity:
+                # we know you would be repulsed, so we add you to a data structure here
+                potential_edges.append((agent_a.number, agent_b.number))
+
+        return potential_edges
 
     def handle_infection(self, agent):
-        """What to do when an agent is infected."""
-        agent.timesteps_infected += 1
-        adjacency_list = self.network[agent]
-        if len(adjacency_list) > 0:
-            susceptible_neighbors = [neighbor for neighbor in adjacency_list if neighbor.is_susceptible()]
-            if len(susceptible_neighbors) > 0:
-                S_I_transition_rate = self.beta / len(susceptible_neighbors)
-                # print('Beta {} / {} susceptible neighbors of infected node: {}'.format(self.beta, len(susceptible_neighbors), S_I_transition_rate))  # found by solving beta = alpha * p, where alpha is the contact rate based on the ABM network
-                for neighbor in susceptible_neighbors:
-                    if random.random() <= S_I_transition_rate:
-                        print('Transitioning {} to infected'.format(neighbor.name))
-                        self.agents[neighbor.number].transition_state('infected')
-                        self.num_susceptible -= 1
-                        self.num_infected += 1
-                        self.agents[neighbor.number].transitioned_this_timestep = True
+        """What to do when an agent is susceptible.
 
+        1. Check for infected neighbors.
+        2. For each infected neighbor:
+           transmit infection to self with si_transition_rate = contact rate of infection at a timestep
+        """
+        adjacency_list = self.network[agent]
+        si_transition_rate = 0
+        infected_neighbors = None
+        msg = 'susceptible {} went to {} and became infected'
+        if len(adjacency_list) > 0:
+            infected_neighbors = [neighbor for neighbor in adjacency_list if neighbor.is_infected()]
+            if len(infected_neighbors) > 0:
+                si_transition_rate = len(infected_neighbors) / len(adjacency_list)
+                if random.random() < si_transition_rate:
+                    print(msg.format(agent.name, agent.mode))
+                    agent.transition_state('infected')
+                    self.num_susceptible -= 1
+                    self.num_infected += 1
+                    agent.transitioned_this_timestep = True
+        infected_neighbor_count = len(infected_neighbors) if infected_neighbors else 0
+        #print('{} had {} infected neighbors and {} neighbors, corresponding with {} infection probability'.format(
+            # agent.name, infected_neighbor_count, len(adjacency_list), si_transition_rate))
+        return si_transition_rate
+
+    def i_r_transition(self, agent):
+        """Recover if t_infected > 1/gamma . And If Quarantined :send back to home"""
         if agent.timesteps_infected >= (1 / self.gamma):
             print('Transitioning {} to removed'.format(agent.name))
             agent.transition_state('removed')
@@ -134,6 +360,18 @@ class City:
             self.num_removed += 1
             agent.transitioned_this_timestep = True
             agent.timesteps_infected = 0
+            if agent.been_quarantined ==True:
+                agent.not_quarantined()
+                agent.send_to_home()    #send agent to home location after returning from quaratinr
+    
+    def quarantine(self,agent):
+        ''' Quarantining an agent and sending the agent to the Q.C. '''
+        #if agent.timesteps_infected >= self.quarantine_threshold:
+        print('Quarantining {}  to Quarantine Center'.format(agent.name))
+        agent.has_been_quarantined()
+        agent.send_to_quarantine_center()
+            
+            
 
     def plot_scatter(self,j):
         ''' For visualising the spread of disease as it moves through the city'''
@@ -144,10 +382,13 @@ class City:
             if agent.state == 'susceptible':
                 col.append("blue")
             if agent.state == 'infected':
-                col.append("red")
+                if agent.been_quarantined == True:
+                    col.append("black")
+                else:
+                    col.append("red")
             if agent.state == 'removed':
                 col.append("green")
-     
+
         sns.set_style("darkgrid")
         plt.ioff()
         fig = plt.figure()
@@ -155,8 +396,23 @@ class City:
             plt.scatter(agent.positionx,agent.positiony,c=col[i],
                        alpha=0.5 )
             i=i+1
-        file="plots_1/{}{}.png".format(self.name,j)
+        file="plots/{}{}.png".format(self.name,j)
         plt.savefig(file,dpi=300)
         plt.close(fig)
 
-
+    '''
+    change proxmity radius to simulate Social Distancing
+    '''
+    def change_proximity(self,epsilon):
+        self.edge_proximity=epsilon
+        
+    def define_quarantine_location(self):
+        ''' Definint location of quarantine center outside the city  '''
+        x=self.width+50
+        print(x)
+        y=self.height*0.5
+        self.quarantine_center_location=[x,y]
+        #x=self.width+50
+        #print(x)
+        #y=self.height*0.5
+        #self.quarantine_center_location=[x,y]
