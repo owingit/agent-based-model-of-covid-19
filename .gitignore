@@ -1,7 +1,9 @@
 # ignore an entire directory
 .idea/*
+data/*
 
 # ignore pyc
 *.pyc
 
 *.txt
+*.png
