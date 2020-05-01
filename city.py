@@ -54,13 +54,7 @@ class City:
         self.edge_proximity = edge_proximity  # proxy for infectivity
         self.policy = policy.Policy(hpolicy, mpolicy)
 
-        try:
-            self.probabilities_dict = self.policy.movement_policy['location_probabilities']
-            self.agents = [Agent(i, self, probs=self.probabilities_dict) for i in
-                           range(0, self.N)]
-        except IndexError:
-            self.agents = [Agent(i, self) for i in
-                           range(0, self.N)]
+        self.agents = [Agent(i, self) for i in range(0, self.N)]
 
         self.quarantine_center_location=None
         self.quarantine_threshold = 4
