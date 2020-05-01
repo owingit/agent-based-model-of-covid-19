@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 from matplotlib import style
 import time
 
+import seaborn as sns
+
 
 class CityGraph:
     def __init__(self, city):
@@ -44,11 +46,12 @@ class CityGraph:
         plot_dict_susceptible = {}
         plot_dict_infected = {}
         plot_dict_removed = {}
-
+        plot_dict_quarantined = {}
         for i, d in enumerate(self.ys):
             plot_dict_susceptible[i] = d['susceptible']
             plot_dict_infected[i] = d['infected']
             plot_dict_removed[i] = d['removed']
+            plot_dict_quarantined[i] = d['quarantined'] 
 
         movement_policy_probs = self.city.policy.movement_probabilities
         movement_policy = movement_policy_probs[len(self.xs)-1]
@@ -99,9 +102,11 @@ class CityGraph:
         for i, beta in enumerate(self.betas):
             plot_dict_betas[i] = beta * 1 / self.gamma
         title = "R_o over time with edge proximity {}".format(self.edge_proximity)
+
         style.use('ggplot')
         plt.title(title)
         plt.plot(list(plot_dict_betas.keys()), list(plot_dict_betas.values()), label="Ro")
+
         plt.xlabel('t')
         plt.ylabel('R_o')
         plt.legend(loc='best')

@@ -6,9 +6,10 @@ import numpy as np
 import itertools
 import scipy
 from scipy import spatial
+import matplotlib.pyplot as plt
 
 import networkx as nx
-
+import seaborn as sns
 
 from agent import *
 
@@ -28,10 +29,12 @@ class City:
         :param dict frequencies_dict: dictionary of special point frequencies
         '''
         self.POLICIES = None
+
         self.gamma = gamma  # gamma naught for covid 19
         self.num_infected = 0
         self.num_removed = 0
         self.num_susceptible = 0
+        self.num_quarantined = 0
         self.N = n
 
         self.name = name
@@ -64,14 +67,6 @@ class City:
         self.quarantine_rate = 0.05
         
         self.setup_agent_central_locations()
-        #
-        # for agent in self.agents:
-        #     print('{} has locations work:{}\nhome:{}\nmarket:{}\ntransit:{}\n'.format(agent.name,
-        #                                                                               agent.personal_central_locations['work'],
-        #                                                                               agent.personal_central_locations['home'],
-        #                                                                               agent.personal_central_locations['market'],
-        #                                                                               agent.personal_central_locations['transit']
-        #                                                                               ))
         self.agent_dict = {v.number: v for v in self.agents}
 
     def setup_agent_central_locations(self):
@@ -117,6 +112,7 @@ class City:
             self.remove_overutilized_regions(agent_used_regions, used_regions,
                                              market_regions, transit_regions,
                                              work_regions, home_regions)
+        self.define_quarantine_location()
 
     def remove_overutilized_regions(self, agent_used_regions, used_regions, market_regions,
                                     transit_regions, work_regions, home_regions):
@@ -224,7 +220,6 @@ class City:
 
         :rtype dict(any)
         """
-
         quarantined = [agent for agent in self.agents if agent.been_quarantined]
         self.num_quarantined = len(quarantined)
 
@@ -232,12 +227,16 @@ class City:
             'susceptible': self.num_susceptible,
             'infected': self.num_infected,
             'removed': self.num_removed,
-            'total_IR': self.num_infected + self.num_removed
+            'total_IR': self.num_infected + self.num_removed,
+            'quarantined': self.num_quarantined
         }
 
     def print_states(self):
         print('City: {}\nSusceptible: {}\nInfected: {}\nRemoved: {} \nQuarantined : {}'.format(
             self.name, self.num_susceptible, self.num_infected, self.num_removed, self.num_quarantined))
+
+    def view_all_policies(self, policies_dict):
+        self.POLICIES = policies_dict
 
     def view_all_policies(self, policies_dict):
         self.POLICIES = policies_dict
@@ -257,6 +256,7 @@ class City:
         # move nodes
         # generate nodes O(n)
         for agent in self.agents:
+            # TODO: this should probably be a function (set alternative policy)
             if 'essential' in self.policy.movement_policy_name:
                 if agent.number % 50 == 0:  # 50 essential workers
                     agent.set_policy(self.policy, i=i)
@@ -267,7 +267,7 @@ class City:
             else:
                 agent.set_policy(self.policy, i=i)
             if i > 0:
-                if not agent.been_quarantined():
+                if not agent.been_quarantined:
                     agent.move()
             self.network.add_node(agent)
 
@@ -282,6 +282,7 @@ class City:
 
         # infect O(n * |neighbor_set|)
         si_transition_rates = []
+
         for agent in self.agents:
             if not agent.has_transitioned_this_timestep():
                 if agent.is_susceptible():
@@ -294,6 +295,7 @@ class City:
                             if quarantine_instance <= self.quarantine_rate:
                                 self.quarantine(agent)
                     self.i_r_transition(agent)
+
         beta = sum(si_transition_rates)
 
         homes = [agent for agent in self.agents if agent.mode == 'home']
@@ -308,8 +310,9 @@ class City:
         len_quarantined = len(quarantined)
 
         if i > 0:
-            print('{} stayed home, {} went to work, {} went on the bus, {} went to the market'.format(
-                len_homes, len_works, len_transits, len_markets
+            print('{} stayed home, {} went to work, {} went on the bus, {} went to the market {} are in quarantine'.format(
+                len_homes, len_works, len_transits, len_markets,len_quarantined
+
             ))
         return beta
 
@@ -321,6 +324,7 @@ class City:
         :param int i: timestep
         """
         potential_edges = []
+
         for pair in list(itertools.combinations(self.agents, r=2)):
             d = np.sqrt(
                 # euclidean distance
@@ -352,17 +356,14 @@ class City:
                 if random.random() < si_transition_rate:
                     print(msg.format(agent.name, agent.mode))
                     agent.transition_state('infected')
+
                     self.num_susceptible -= 1
                     self.num_infected += 1
                     agent.transitioned_this_timestep = True
-        infected_neighbor_count = len(infected_neighbors) if infected_neighbors else 0
-        #print('{} had {} infected neighbors and {} neighbors, corresponding with {} infection probability'.format(
-            # agent.name, infected_neighbor_count, len(adjacency_list), si_transition_rate))
         return si_transition_rate
 
     def i_r_transition(self, agent):
-        """Recover if t_infected > 1/gamma."""
-        agent.timesteps_infected += 1
+        """Recover if t_infected > 1/gamma. If quarantined, send back to home"""
         if agent.timesteps_infected >= (1 / self.gamma):
             print('Transitioning {} to removed'.format(agent.name))
             agent.transition_state('removed')

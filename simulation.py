@@ -1,3 +1,10 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Apr 29 10:25:20 2020
+
+@author: atiyab
+"""
+
 from city import *
 from CityGraph import *
 from scipy import special
@@ -10,6 +17,7 @@ import sys
 GAMMAS = np.linspace(1.0, 20.0, num=20)  # infection length (days)
 EDGE_PROXIMITIES = np.linspace(0.01, 1.0, num=100)  # proxy for infectivity
 DO_PARAMETER_SWEEP = False
+
 COVID_Gamma = 18.0
 LOCATION_POLICIES = {
     'lax': {'home': 0.3, 'work': 0.3, 'market': 0.1, 'transit': 0.3},
@@ -18,6 +26,7 @@ LOCATION_POLICIES = {
     'stay_at_home': {'home': 0.9, 'work': 0.00, 'market': 0.05, 'transit': 0.05},
     'essential_worker': {'home': 0.3, 'work': 0.5, 'market': 0.05, 'transit': 0.15},
     'lockdown': {'home': 0.95, 'work': 0.00, 'market': 0.04, 'transit': 0.01},
+    'restrict' : {'home': 0.75, 'work': 0.05, 'market': 0.1, 'transit': 0.1}
 }
 POLICIES = dict()
 migration_prob = (1/100.0)
@@ -65,7 +74,7 @@ def main():
     #print(np.mean(imaxs[0][:]), np.mean(imaxs[1][:]))
 
 
-def setup_and_run(timesteps, edge_proximity, gamma):
+def setup_and_run(timesteps, edge_proximity, gamma, migration_threshold, lockdown_threshold):
     """Initialize the simulation.
 
     :param timesteps: number of timesteps to run the simulation
@@ -109,6 +118,7 @@ def setup_and_run(timesteps, edge_proximity, gamma):
                 finished_cities.append(city)
         if len(finished_cities) == len(cities):
             print('All agents are free of infection.')
+
             break
 
     i_max = []
@@ -134,6 +144,7 @@ def construct_cities(edge_proximity, gamma_denom, timesteps, lockdown_threshold)
     # TODO: different Ro for different cities, based on data?
     gamma = 1.0 / gamma_denom
 
+    # TODO: cleaner construction
     intent = 'tight'
     location_policies_dict_a = construct_location_policies_dict(intent, timesteps, lockdown_threshold)
     mpolicy_a = ['preferential_return_tight', location_policies_dict_a]
@@ -154,10 +165,17 @@ def construct_cities(edge_proximity, gamma_denom, timesteps, lockdown_threshold)
     mpolicy_f = ['preferential_return_even', location_policies_dict_f]
     
     frequencies_dict_a = {'market': 50, 'transit': 200, 'work': 20, 'home': 2}
-
+    frequencies_dict_b = {'market': 50, 'transit': 200, 'work': 20, 'home': 3}
+    '''
+    New Zeeland 18/km*2
+    here 0.2  edge proximity equal to 2 m in real life: 1 km = 100 units
+    area=200*200 = 4e4 units^2 = 400 km^2 population =18*400
+    '''
     ws = [200, 300, 50]
     hs = [200, 300, 50]
-    ns = [1500, 5000, 600]
+    #ns = [1500, 500, 600]
+    ns = [600, 500, 600]
+
     hpolicy_a = 'social_distancing'
     hpolicy_b = 'normal'
     cities = [
@@ -176,12 +194,14 @@ def construct_cities(edge_proximity, gamma_denom, timesteps, lockdown_threshold)
     return cities
 
 
-def construct_location_policies_dict(intent, timesteps):
+def construct_location_policies_dict(intent, timesteps,t0):
     """Make policy different at each timestep."""
     location_policies_dict = {}
     for i in range(0, timesteps):
-        if i < 10:
-             location_policies_dict[i] = LOCATION_POLICIES['lax']
+        if i < t0:
+            location_policies_dict[i] = LOCATION_POLICIES['lax']
+       # elif (i < t0+2 and i>t0):
+      #      location_policies_dict[i] = LOCATION_POLICIES['restrict']
         else:
             location_policies_dict[i] = LOCATION_POLICIES[intent]
     POLICIES[intent] = location_policies_dict

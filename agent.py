@@ -9,12 +9,11 @@ from shapely.geometry.polygon import Polygon
 
 
 class Agent:
-    def __init__(self, i, City):
+    def __init__(self, i, city, **kwargs):
         '''Defines an agent, which represents a node in the city-level infection network.
 
         :param int i: num
-        :param city.City City: City object encompassing the agent
-        :param **kwargs
+        :param city.City city: City object encompassing the agent
         '''
         # attributes
         self.susceptible = True
@@ -22,8 +21,9 @@ class Agent:
         self.removed = False
 
         self.timesteps_infected = 0
-        self.city = City
+        self.city = city
         self.policy = None
+
         self.health_policy_active = False
 
         self.positionx = None
@@ -46,7 +46,8 @@ class Agent:
         self.number = i
         self.velocity = 1.0
         self.transitioned_this_timestep = False
-
+        self._been_quarantined = False
+        
         self.initialize_position_and_direction_and_state()
 
     def initialize_position_and_direction_and_state(self):
@@ -104,6 +105,7 @@ class Agent:
         assert self.stay_at_home_probability is not None, msg.format('home')
         assert self.work_probability is not None, msg.format('work')
         assert self.transit_probability is not None, msg.format('transit')
+
         rand_val = random.random()
         if rand_val < self.stay_at_home_probability:
             mode = 'home'
@@ -184,7 +186,6 @@ class Agent:
     def set_and_verify_locations(self, market_regions, transit_regions, workspace_regions, home_regions):
         """Set a central location (supermarket) for the agent based on their home location.
 
-
         If the home location for an agent is in the voronoi region of a point, that point becomes its central location.
 
         :param tuple market_regions: list of points denoting 'market' central locations and their regional boundaries
@@ -201,12 +202,14 @@ class Agent:
         point = Point(self.positionx, self.positiony)
 
         if not market_regions[0]:
+            # setup_voronoi_diagrams returned an error so we use random wiring to determine locations
+
             used_regions = {'market': None,
                             'transit': None,
                             'work': None,
                             'home': None
                             }
-            #  locations are determined by random network wiring
+
             for key in enumerated_points.keys():
                 points_list = enumerated_points.get(key)
                 if points_list:
@@ -273,3 +276,21 @@ class Agent:
 
     def has_transitioned_this_timestep(self):
         return self.transitioned_this_timestep
+    
+    def has_been_quarantined(self):
+        self._been_quarantined = True
+        
+    def not_quarantined(self):
+        self._been_quarantined = False
+
+    @property
+    def been_quarantined(self):
+        return self._been_quarantined
+        
+    def send_to_quarantine_center(self):
+        self.positionx = self.city.quarantine_center_location[0]+ np.random.normal(-5.0, 5.0)
+        self.positiony = self.city.quarantine_center_location[1]+ np.random.normal(-5.0, 5.0)
+    
+    def send_to_home(self):
+        self.positionx = list(self.personal_central_locations['home'])[0] + np.random.normal(-0.5, 0.5)
+        self.positiony = list(self.personal_central_locations['home'])[1] + np.random.normal(-0.5, 0.5)
