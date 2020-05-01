@@ -208,11 +208,14 @@ class Agent:
                             }
             #  locations are determined by random network wiring
             for key in enumerated_points.keys():
-                points_list = enumerated_points[key]
-                random_index = random.randint(0, len(points_list) - 1)
-                self.personal_central_locations[key] = frozenset([points_list[random_index][0],
-                                                                  points_list[random_index][1]])
-                used_regions[key] = random_index
+                points_list = enumerated_points.get(key)
+                if points_list:
+                    random_index = random.randint(0, len(points_list) - 1)
+                    self.personal_central_locations[key] = frozenset([points_list[random_index][0],
+                                                                      points_list[random_index][1]])
+                    used_regions[key] = random_index
+                else:
+                    print('No {} location found for {}'.format(key, self.name))
         else:
             enumerated_regions = {'market': market_regions[0],
                                   'transit': transit_regions[0],

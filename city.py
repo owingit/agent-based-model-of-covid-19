@@ -49,9 +49,20 @@ class City:
         self.past_networks = []
         self.network = None
         self.edge_proximity = edge_proximity  # proxy for infectivity
-        self.agents = [Agent(i, self) for i in range(0, self.N)]
         self.policy = policy.Policy(hpolicy, mpolicy)
 
+        try:
+            self.probabilities_dict = self.policy.movement_policy['location_probabilities']
+            self.agents = [Agent(i, self, probs=self.probabilities_dict) for i in
+                           range(0, self.N)]
+        except IndexError:
+            self.agents = [Agent(i, self) for i in
+                           range(0, self.N)]
+
+        self.quarantine_center_location=None
+        self.quarantine_threshold = 4
+        self.quarantine_rate = 0.05
+        
         self.setup_agent_central_locations()
         #
         # for agent in self.agents:
@@ -151,6 +162,8 @@ class City:
         polygons_dict = {mode: [] for mode in modes}
         for index, location_group in enumerate(points_list):
             try:
+                location_group = list(location_group)
+
                 vor = Voronoi(location_group)
                 vertices = vor.vertices
                 regions = vor.regions
@@ -170,6 +183,9 @@ class City:
                 polygons_dict[modes[index]].extend(polygons)
             except spatial.qhull.QhullError:
                 print('Catching Qhull error, defaulting to random network wiring')
+                return None, None, None, None
+            except IndexError:
+                print('Catching Index error, defaulting to random network wiring')
                 return None, None, None, None
         return polygons_dict['market'], polygons_dict['transit'], polygons_dict['work'], polygons_dict['home']
 
@@ -208,6 +224,10 @@ class City:
 
         :rtype dict(any)
         """
+
+        quarantined = [agent for agent in self.agents if agent.been_quarantined]
+        self.num_quarantined = len(quarantined)
+
         return {
             'susceptible': self.num_susceptible,
             'infected': self.num_infected,
@@ -216,8 +236,8 @@ class City:
         }
 
     def print_states(self):
-        print('City: {}\nSusceptible: {}\nInfected: {}\nRemoved: {}\n'.format(
-            self.name, self.num_susceptible, self.num_infected, self.num_removed))
+        print('City: {}\nSusceptible: {}\nInfected: {}\nRemoved: {} \nQuarantined : {}'.format(
+            self.name, self.num_susceptible, self.num_infected, self.num_removed, self.num_quarantined))
 
     def view_all_policies(self, policies_dict):
         self.POLICIES = policies_dict
@@ -247,7 +267,8 @@ class City:
             else:
                 agent.set_policy(self.policy, i=i)
             if i > 0:
-                agent.move()
+                if not agent.been_quarantined():
+                    agent.move()
             self.network.add_node(agent)
 
         # generate edges O(n^2)
@@ -266,6 +287,12 @@ class City:
                 if agent.is_susceptible():
                     si_transition_rates.append(self.handle_infection(agent))
                 if agent.is_infected():
+                    agent.timesteps_infected += 1
+                    quarantine_instance = random.random()
+                    if not agent.been_quarantined:
+                        if agent.timesteps_infected >= self.quarantine_threshold:
+                            if quarantine_instance <= self.quarantine_rate:
+                                self.quarantine(agent)
                     self.i_r_transition(agent)
         beta = sum(si_transition_rates)
 
@@ -277,6 +304,9 @@ class City:
         len_transits = len(transits)
         markets = [agent for agent in self.agents if agent.mode == 'market']
         len_markets = len(markets)
+        quarantined = [agent for agent in self.agents if agent.been_quarantined]
+        len_quarantined = len(quarantined)
+
         if i > 0:
             print('{} stayed home, {} went to work, {} went on the bus, {} went to the market'.format(
                 len_homes, len_works, len_transits, len_markets
@@ -340,3 +370,56 @@ class City:
             self.num_removed += 1
             agent.transitioned_this_timestep = True
             agent.timesteps_infected = 0
+            if agent.been_quarantined:
+                agent.not_quarantined()
+                agent.send_to_home()
+
+    @staticmethod
+    def quarantine(agent):
+        '''Quarantining an agent and sending the agent to the Q.C.'''
+        print('Quarantining {} to Quarantine Center'.format(agent.name))
+        agent.has_been_quarantined()
+        agent.send_to_quarantine_center()
+
+    def plot_scatter(self, j):
+        ''' For visualising the spread of disease as it moves through the city'''
+        state_index = 0
+        colors = []
+        for agent in self.agents:
+            if agent.state == 'susceptible':
+                colors.append("blue")
+            if agent.state == 'infected':
+                if agent.been_quarantined:
+                    colors.append("black")
+                else:
+                    colors.append("red")
+            if agent.state == 'removed':
+                colors.append("green")
+
+        sns.set_style("darkgrid")
+        plt.ioff()
+        fig = plt.figure()
+        for agent in self.agents:
+            plt.scatter(agent.positionx,
+                        agent.positiony,
+                        c=colors[state_index],
+                        alpha=0.5)
+            state_index += 1
+        scatterfile = "plots/{}{}.png".format(self.name, j)
+        plt.savefig(scatterfile, dpi=300)
+        plt.close(fig)
+
+    def change_proximity(self, epsilon):
+        '''Change proxmity radius to simulate Social Distancing.
+
+        :param epsilon: New proximity value
+        '''
+
+        self.edge_proximity = epsilon
+
+    def define_quarantine_location(self):
+        '''Define location of quarantine center outside the city.'''
+
+        quarantine_x = self.width + 50
+        quarantine_y= self.height * 0.5
+        self.quarantine_center_location = [quarantine_x, quarantine_y]
