@@ -3,3 +3,4 @@ scipy
 networkx
 shapely
 matplotlib
+retrying

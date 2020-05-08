@@ -38,11 +38,14 @@ class CityGraph:
         with open(self.datafile, 'a+',) as f:
             f.write(data_line)
 
-    def plot_data(self):
+    def plot_data(self, avgs=None):
         """Plot S, I, R curves over time.
 
         # TODO: animation?
         """
+        add_on = ''
+        if avgs:
+            add_on = 'avg_vals (n={})'.format(avgs)
         plot_dict_susceptible = {}
         plot_dict_infected = {}
         plot_dict_removed = {}
@@ -57,7 +60,7 @@ class CityGraph:
         movement_policy = movement_policy_probs[len(self.xs)-1]
 
         title = "{}. {}x{}, {} agents.\n Quarantine Rate: {} Quarantine Threshold : {} Days".format(
-            self.name,
+            self.name+add_on,
             self.city.width,
             self.city.height,
             self.N,
@@ -90,7 +93,7 @@ class CityGraph:
         plt.xlabel('time')
         plt.ylabel('Number of Agents')
         plt.legend(loc='best')
-        plotname = "SIR-" + self.name + "{}".format(self.city.quarantine_rate) + "{}".format(time.strftime("%Y%m%d-%H%M%S")) + ".png"
+        plotname = "SIR-" + self.name+add_on + "{}".format(self.city.quarantine_rate) + "{}".format(time.strftime("%Y%m%d-%H%M%S")) + ".png"
         plt.savefig('data/{}'.format(plotname), dpi=300, bbox_inches='tight')
         # plt.show()
         plt.close(fig1)

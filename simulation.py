@@ -26,7 +26,7 @@ LOCATION_POLICIES = {
     'stay_at_home': {'home': 0.9, 'work': 0.00, 'market': 0.05, 'transit': 0.05},
     'essential_worker': {'home': 0.3, 'work': 0.5, 'market': 0.05, 'transit': 0.15},
     'lockdown': {'home': 0.95, 'work': 0.00, 'market': 0.04, 'transit': 0.01},
-    'restrict' : {'home': 0.75, 'work': 0.05, 'market': 0.1, 'transit': 0.1}
+    'restrict': {'home': 0.75, 'work': 0.05, 'market': 0.1, 'transit': 0.1}
 }
 POLICIES = dict()
 migration_prob = (1/100.0)
@@ -35,43 +35,6 @@ MIGRATE = False
 SOCIAL_DISTANCING = False
 PLOT_SCATTER = False
 NRUNS = 5
-
-
-def main():
-    migration_t0 = 1
-    lockdown_t0 = 15
-    lockdown_t0s = [lockdown_t0]
-    '''
-    for t in T:
-        datafile='data/imax{}.dat'.format(t)
-        fn=open(datafile,'w+')
-        fn.write('\n')
-        fn.close()
-    '''
-    timesteps = int(sys.argv[1]) if len(sys.argv) > 1 else 200
-    for t in lockdown_t0s:
-        lockdown_t0 = t
-        if DO_PARAMETER_SWEEP:
-            for edge_proximity in EDGE_PROXIMITIES:
-                for gamma in GAMMAS:
-                    setup_and_run(timesteps, edge_proximity, gamma, migration_t0, lockdown_t0)
-        else:
-            nruns = NRUNS
-            #imax = np.zeros((2,nruns))                                #ADD number of cities to first index of array
-            datafile = 'data/imax{}.dat'.format(t)
-            fn = open(datafile, 'a+')
-            imaxs = []
-            for i in range(nruns):  
-                i_max = setup_and_run(timesteps, 0.2, COVID_Gamma, migration_t0, lockdown_t0)
-                #  print(Imax)
-                imaxs.append(i_max[0])
-                #  imaxs[:][i]=i_max[:]
-                #  imaxs[0][i]=i_max[0]
-                #  imaxs[1][i]=i_max[1]
-                fn.write("{}\t{}\n".format(i, i_max[0]))
-            fn.close()
-            print(imaxs)
-    #print(np.mean(imaxs[0][:]), np.mean(imaxs[1][:]))
 
 
 def setup_and_run(timesteps, edge_proximity, gamma, migration_threshold, lockdown_threshold):
@@ -127,9 +90,9 @@ def setup_and_run(timesteps, edge_proximity, gamma, migration_threshold, lockdow
         cg.total_infected = cg.ys[len(cg.xs)-1]['total_IR']
         infected = cg.plot_data()
         i_max.append(infected)
-        cg.plot_ro()
+        # cg.plot_ro()
     print(i_max)
-    return i_max
+    return i_max, city_graphs
 
 
 def construct_cities(edge_proximity, gamma_denom, timesteps, lockdown_threshold):
@@ -165,7 +128,9 @@ def construct_cities(edge_proximity, gamma_denom, timesteps, lockdown_threshold)
     mpolicy_f = ['preferential_return_even', location_policies_dict_f]
     
     frequencies_dict_a = {'market': 50, 'transit': 200, 'work': 20, 'home': 2}
-    frequencies_dict_b = {'market': 50, 'transit': 200, 'work': 20, 'home': 3}
+    frequencies_dict_b = {'market': 50, 'transit': 200, 'work': 20, 'home': 4}
+    frequencies_dict_c = {'market': 50, 'transit': 200, 'work': 20, 'home': 6}
+
     '''
     New Zeeland 18/km*2
     here 0.2  edge proximity equal to 2 m in real life: 1 km = 100 units
@@ -187,8 +152,13 @@ def construct_cities(edge_proximity, gamma_denom, timesteps, lockdown_threshold)
               #      gamma=gamma, hpolicy=hpolicy_b, mpolicy=mpolicy_c),
               # City(name='EssentialWorkerOpolis', x=ws[1], y=hs[1], n=ns[1], edge_proximity=edge_proximity,
               #      gamma=gamma, hpolicy=hpolicy_b, mpolicy=mpolicy_d),
-              City('City A', ws[0], hs[0], ns[0], edge_proximity, gamma, hpolicy_b, mpolicy_e,
-                   frequencies_dict_b)]
+              City('Small homes (n=2)', ws[0], hs[0], ns[0], edge_proximity, gamma, hpolicy_b, mpolicy_e,
+                   frequencies_dict_a),
+              City('Normal homes (n=4)', ws[0], hs[0], ns[0], edge_proximity, gamma, hpolicy_b, mpolicy_e,
+                   frequencies_dict_b),
+              City('Large homes (n=6)', ws[0], hs[0], ns[0], edge_proximity, gamma, hpolicy_b, mpolicy_e,
+                   frequencies_dict_c),
+    ]
     for city_i in cities:
         city_i.view_all_policies(POLICIES)
     return cities
@@ -263,7 +233,6 @@ def shuffle_central_locations(agent0, agent1):
     Brute Forced through the shuffling
     TODO: Make the shuffling code more elegant
     '''
-    migrating_agents = [agent0, agent1]
     modes = ['market', 'home', 'work', 'transit']
     for mode in modes:
         m0x = list(agent0.personal_central_locations[mode])[0]
@@ -272,6 +241,79 @@ def shuffle_central_locations(agent0, agent1):
         m1y = list(agent1.personal_central_locations[mode])[1]
         agent0.personal_central_locations[mode] = [m1x, m1y]
         agent1.personal_central_locations[mode] = [m0x, m0y]
+
+
+def main():
+    migration_t0 = 1
+    lockdown_t0 = 15
+    lockdown_t0s = [lockdown_t0]
+    '''
+    for t in T:
+        datafile='data/imax{}.dat'.format(t)
+        fn=open(datafile,'w+')
+        fn.write('\n')
+        fn.close()
+    '''
+    city_graph_avgs = {}
+    timesteps = int(sys.argv[1]) if len(sys.argv) > 1 else 200
+    for t in lockdown_t0s:
+        lockdown_t0 = t
+        if DO_PARAMETER_SWEEP:
+            for edge_proximity in EDGE_PROXIMITIES:
+                for gamma in GAMMAS:
+                    setup_and_run(timesteps, edge_proximity, gamma, migration_t0, lockdown_t0)
+        else:
+            nruns = NRUNS
+            #imax = np.zeros((2,nruns))                                #ADD number of cities to first index of array
+            datafile = 'data/imax{}.dat'.format(t)
+            fn = open(datafile, 'a+')
+            imaxs = []
+            for i in range(nruns):
+                i_max, city_graphs = setup_and_run(timesteps, 0.2, COVID_Gamma, migration_t0, lockdown_t0)
+                #  print(Imax)
+                imaxs.append(i_max[0])
+                for city_graph in city_graphs:
+                    if not city_graph_avgs.get(city_graph.name):
+                        city_graph_avgs[city_graph.name] = city_graph
+                        num_ys = len(city_graph.ys)
+                        while num_ys < timesteps:
+                            dict_beyond_last_timestep = {'susceptible': city_graph.ys[-1]['susceptible'],
+                                                         'infected': city_graph.ys[-1]['infected'],
+                                                         'removed': city_graph.ys[-1]['removed'],
+                                                         'quarantined': city_graph.ys[-1]['quarantined'],
+                                                         }
+                            city_graph_avgs[city_graph.name].ys.append(dict_beyond_last_timestep)
+                            num_ys += 1
+                    else:
+                        for index, state_dict in enumerate(city_graph.ys):
+                            for state_key in ('susceptible', 'infected', 'removed', 'quarantined'):
+                                city_graph_avgs[city_graph.name].ys[index][state_key] += state_dict[state_key]
+                        num_ys = len(city_graph.ys)
+                        while num_ys < timesteps:
+                            for state_key in ('susceptible', 'infected', 'removed', 'quarantined'):
+
+                                dict_beyond_last_timestep = {'susceptible': city_graph.ys[-1]['susceptible'],
+                                                             'infected': city_graph.ys[-1]['infected'],
+                                                             'removed': city_graph.ys[-1]['removed'],
+                                                             'quarantined': city_graph.ys[-1]['quarantined'],
+                                                            }
+                                city_graph_avgs[city_graph.name].ys[num_ys][state_key] += dict_beyond_last_timestep[state_key]
+                            num_ys += 1
+
+                #  imaxs[:][i]=i_max[:]
+                #  imaxs[0][i]=i_max[0]
+                #  imaxs[1][i]=i_max[1]
+                fn.write("{}\t{}\n".format(i, i_max[0]))
+            fn.close()
+            print(imaxs)
+    for cg in city_graph_avgs.values():
+        for index, y_val in enumerate(cg.ys):  # y_val should be dict of above form
+            for state_key in ('susceptible', 'infected', 'removed', 'quarantined'):
+                cg.ys[index][state_key] = y_val[state_key] / NRUNS
+        infected = cg.plot_data(avgs=NRUNS)
+        print('imax over {} runs for {}: {}'.format(NRUNS, cg.name, infected))
+
+    #print(np.mean(imaxs[0][:]), np.mean(imaxs[1][:]))
 
 
 if __name__ == "__main__":

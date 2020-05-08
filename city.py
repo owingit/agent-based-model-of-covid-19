@@ -6,6 +6,7 @@ import numpy as np
 import itertools
 import scipy
 from scipy import spatial
+from retrying import retry
 import matplotlib.pyplot as plt
 
 import networkx as nx
@@ -57,12 +58,14 @@ class City:
         self.agents = [Agent(i, self) for i in range(0, self.N)]
 
         self.quarantine_center_location=None
-        self.quarantine_threshold = 4
+        self.quarantine_threshold = 5
         self.quarantine_rate = 0.05
         
         self.setup_agent_central_locations()
+
         self.agent_dict = {v.number: v for v in self.agents}
 
+    @retry
     def setup_agent_central_locations(self):
         """Function to initialize central locations for each agent.
 
@@ -97,6 +100,8 @@ class City:
                 (work_regions, workspaces),
                 (home_regions, homes)
             )
+            if not agent_used_regions:
+                raise RuntimeError('No locations found for one or more regions!')
 
             used_regions['market'].append(agent_used_regions['market'])
             used_regions['transit'].append(agent_used_regions['transit'])

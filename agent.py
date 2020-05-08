@@ -193,32 +193,34 @@ class Agent:
         :param tuple workspace_regions: list of points denoting 'work' central locations and their regional boundaries
         :param tuple home_regions: list of points denoting 'home' central locations and their regional boundaries
 
-        :rtype dict
+        :rtype dict|None 
+        :returns: Dictionary of central locations if successful;
+                  dictionary of empty values if the diagrams could not be made;
+                  None if missing one or more values
         """
         enumerated_points = {'market': market_regions[1],
                              'transit': transit_regions[1],
                              'work': workspace_regions[1],
                              'home': home_regions[1]}
         point = Point(self.positionx, self.positiony)
+        used_regions = {'market': None,
+                        'transit': None,
+                        'work': None,
+                        'home': None
+                        }
 
         if not market_regions[0]:
-            # setup_voronoi_diagrams returned an error so we use random wiring to determine locations
-
-            used_regions = {'market': None,
-                            'transit': None,
-                            'work': None,
-                            'home': None
-                            }
-
-            for key in enumerated_points.keys():
-                points_list = enumerated_points.get(key)
+            # setup_voronoi_diagrams returned an error so we will later use random network wiring to determine locations
+            for location in enumerated_points.keys():
+                points_list = enumerated_points.get(location)
                 if points_list:
                     random_index = random.randint(0, len(points_list) - 1)
-                    self.personal_central_locations[key] = frozenset([points_list[random_index][0],
+                    self.personal_central_locations[location] = frozenset([points_list[random_index][0],
                                                                       points_list[random_index][1]])
-                    used_regions[key] = random_index
+                    used_regions[location] = random_index
                 else:
-                    print('No {} location found for {}'.format(key, self.name))
+                    print('No {} location found for {}'.format(location, self.name))
+                    used_regions = None
         else:
             enumerated_regions = {'market': market_regions[0],
                                   'transit': transit_regions[0],
@@ -227,11 +229,6 @@ class Agent:
                                   }
 
             # update the agent's personal central location for each mode
-            used_regions = {'market': None,
-                            'transit': None,
-                            'work': None,
-                            'home': None
-                            }
             for location_type, poly_tuples in enumerated_regions.items():
                 assigned = False
                 for region, polygon in poly_tuples:
